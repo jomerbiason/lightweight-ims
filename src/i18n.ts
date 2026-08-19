@@ -26,7 +26,11 @@ const en:Record<string,string>={
  scan:'Scan',cancel:'Cancel',scanUnsupported:'Barcode scanning is not supported on this device or browser.',
  scanCameraError:'Could not access the camera.',
  receipt:'Receipt',share:'Share',copy:'Copy',copied:'Copied to clipboard.',total:'Total',
- thankYou:'Thank you for your purchase!'
+ thankYou:'Thank you for your purchase!',
+ add:'Add',cart:'Cart',clearCart:'Clear cart',checkout:'Checkout',notEnoughStock:'Not enough stock.',
+ removeItem:'Remove',frequentlySold:'Frequently sold',
+ expiringSoon:'Expiring Soon',expiringSoonHint:'Consider discounting these to sell them before they expire.',
+ expiry:'Expiry'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -54,7 +58,11 @@ const fil:Record<string,string>={
  scan:'Scan',cancel:'Kanselahin',scanUnsupported:'Hindi supported ang barcode scanning sa device o browser na ito.',
  scanCameraError:'Hindi ma-access ang camera.',
  receipt:'Resibo',share:'I-share',copy:'Kopyahin',copied:'Nakopya sa clipboard.',total:'Kabuuan',
- thankYou:'Salamat sa inyong pagbili!'
+ thankYou:'Salamat sa inyong pagbili!',
+ add:'Idagdag',cart:'Cart',clearCart:'I-clear ang cart',checkout:'Checkout',notEnoughStock:'Hindi sapat ang stock.',
+ removeItem:'Alisin',frequentlySold:'Madalas mabenta',
+ expiringSoon:'Malapit nang Mag-expire',expiringSoonHint:'Isaalang-alang ang pag-discount para mabenta agad bago mag-expire.',
+ expiry:'Expiry'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

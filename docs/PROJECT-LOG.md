@@ -141,3 +141,10 @@ Install dependencies, run `npm test`, `npm run typecheck`, and `npm run build`, 
 - Added safe defaults for existing stores so the new UI settings do not break older `.store` data.
 - Added responsive settings layout and improved dark-mode readability.
 - Kept `npm run verify` as the release gate; UI changes must still pass typecheck, tests, and build.
+
+## Planned — Monetization (not yet implemented)
+
+- **Decision (2026-08-20):** future monetization will be a **one-time purchase** to unlock Pro features/limits, not Google AdSense and not a recurring subscription.
+- **Why:** the app is a private, single-user, offline-first PWA with no backend or accounts. AdSense is a poor fit (requires network, low traffic per user since each install is single-user). A subscription would require a backend, accounts, and online payment verification, which contradicts the zero-setup offline-first design.
+- **Direction to implement later:** free tier with some limit/feature gate (e.g. product count cap, or gating barcode scanning / receipts / multi-language), unlocked via a one-time purchase producing a license key (e.g. via Gumroad, PayPal.me, or Buy Me a Coffee) that is entered manually and verified **offline** (e.g. a signed/hashed key check, no backend call required) — keeps the app's offline-first, no-account model intact.
+- **Status:** deferred — no code changes made yet. Revisit and define the exact free-vs-Pro feature split before implementation.

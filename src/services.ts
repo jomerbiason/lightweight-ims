@@ -59,8 +59,8 @@ export function applyInventoryChange(
   return commit(d, get(d, productId), type, change, reason.trim());
 }
 
-export function recordSale(d: StoreData, productId: string, quantity: number): InventoryTransaction {
-  return commit(d, get(d, productId), 'SALE', -positiveQty(quantity), 'Sale');
+export function recordSale(d: StoreData, productId: string, quantity: number, referenceId?: string): InventoryTransaction {
+  return commit(d, get(d, productId), 'SALE', -positiveQty(quantity), 'Sale', referenceId);
 }
 
 export function stockIn(d: StoreData, productId: string, quantity: number, reason = 'Stock-in'): InventoryTransaction {

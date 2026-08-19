@@ -116,6 +116,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%,rgba(255,255,255,.14),transparent 55%)}
 .hero h1{font-size:1.7rem;position:relative}
 .hero .muted{color:#dcfce7;position:relative;margin-top:4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .search{width:100%;margin:14px 0}
 .listrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;padding:14px 16px}
 .listrow strong{font-size:.94rem}
