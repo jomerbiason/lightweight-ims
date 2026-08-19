@@ -1,20 +1,31 @@
 # Lightweight IMS
 
-**V1.3.2 — Testing & Bug Fix**
+**V1.3.3 — Verified Release**
 
 Offline-first inventory and simple sales tracker for small sari-sari stores.
 
-### V1.3.2
-- Auditable inventory service layer
-- Sale / stock-in / adjustment / stock count / compensating undo
-- Negative-stock prevention
-- Required adjustment reasons
-- Versioned `.store` migration (V1 → V2)
-- Safe CSV export helpers
-- Automated regression tests and CI support
-- Persistent project/session change logs for cross-session continuation
-- Security and production-readiness documentation
+## Release Status
 
-Run: `npm install && npm test && npm run typecheck && npm run build`
+**Version:** `1.3.3`
 
-Status: **production-hardening / production-candidate foundation**. Complete real-device, accessibility, offline, storage-failure, and deployment acceptance before public launch.
+**Verification:** PASS  
+**npm audit:** 0 vulnerabilities  
+**Verification result:** 9 PASS / 0 FAIL / 0 SKIP
+
+This release has been verified locally using the project's authoritative verification gate:
+
+```text
+npm run verify
+
+[PASS] npm available
+[PASS] package-lock.json present
+[PASS] Node runtime supported
+[PASS] npm registry reachable
+[PASS] npm cache verify
+[PASS] npm ci
+[PASS] typecheck
+[PASS] test
+[PASS] build
+
+FINAL RESULT: PASS
+PASS: 9 | FAIL: 0 | SKIP: 0
