@@ -1,3 +1,24 @@
+## [1.3.3] UI Personalization Enhancement — 2026-08-19
+
+### UI / UX
+- Added per-store appearance settings with Light, Dark, and System themes.
+- Added accent color picker plus quick color presets.
+- Added Filipino / English language switcher in Appearance settings.
+- Added configurable store name from the Appearance panel.
+- Added responsive settings cards and improved dark-mode contrast.
+- Added consistent CSS variables so accent/theme changes apply across the interface.
+- Preserved offline-first storage and existing inventory workflows.
+- Existing store data receives safe defaults for new UI settings when loaded.
+- Updated header version display to v1.3.3.
+
+## [1.3.3] Documentation Baseline Cleanup — 2026-08-19
+
+- Corrected README release metadata from v1.3.2 to v1.3.3.
+- Documented verified npm, audit, typecheck, test, build, and release-gate results.
+- Documented Vite/Vitest security remediation.
+- Documented GitHub/Cloudflare deployment and release hygiene.
+- No application/business logic changes were made.
+
 ## 1.3.3 — Security Remediation & Final Release Closure
 - Remediated the Vite HIGH and Vitest CRITICAL npm audit findings by updating the development dependencies.
 - Final dependency declarations: Vite `^7.3.6`, Vitest `^3.2.7`, TypeScript `^5.8.3`.

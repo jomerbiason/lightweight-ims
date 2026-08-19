@@ -121,3 +121,23 @@ Install dependencies, run `npm test`, `npm run typecheck`, and `npm run build`, 
 - Re-ran `npm run verify` after the dependency update: **9 PASS, 0 FAIL, 0 SKIP**.
 - Added `docs/SECURITY-REMEDIATION-v1.3.3.md` and updated all verification/release records.
 - Prepared the final release package without generated `node_modules`, `dist`, or `.vite` artifacts; reproducible installation is provided by `package-lock.json` and `npm ci`.
+
+## v1.3.3 Documentation Baseline Cleanup — 2026-08-19
+
+- Updated `README.md` from stale v1.3.2 wording to the verified v1.3.3 release state.
+- Documented the final npm verification result: `PASS: 9 | FAIL: 0 | SKIP: 0`.
+- Documented the final dependency audit result: `0 vulnerabilities`.
+- Documented Vite/Vitest security remediation and final dependency versions.
+- Documented GitHub/Cloudflare deployment baseline.
+- Documented release-package hygiene and excluded generated/local-only files.
+- No application or business logic was changed by this documentation cleanup.
+
+## v1.3.3 UI Personalization Enhancement — 2026-08-19
+
+- Enhanced the UI without changing inventory business logic.
+- Added Appearance settings for theme, language, accent color, and store name.
+- Added Light / Dark / System theme handling with system preference detection.
+- Added color picker and preset accent colors.
+- Added safe defaults for existing stores so the new UI settings do not break older `.store` data.
+- Added responsive settings layout and improved dark-mode readability.
+- Kept `npm run verify` as the release gate; UI changes must still pass typecheck, tests, and build.

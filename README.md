@@ -4,255 +4,112 @@
 
 Offline-first inventory and simple sales tracker for small sari-sari stores.
 
----
+## V1.3.3
 
-## Release Status
-
-- **Version:** `1.3.3`
-- **Verification:** PASS
-- **npm audit:** 0 vulnerabilities
-- **Verification Result:** 9 PASS / 0 FAIL / 0 SKIP
-
-This release has been verified locally using the project's authoritative verification gate:
-
-```text
-npm run verify
-
-[PASS] npm available
-[PASS] package-lock.json present
-[PASS] Node runtime supported
-[PASS] npm registry reachable
-[PASS] npm cache verify
-[PASS] npm ci
-[PASS] typecheck
-[PASS] test
-[PASS] build
-
-FINAL RESULT: PASS
-PASS: 9 | FAIL: 0 | SKIP: 0
-```
-
----
-
-## Features
-
-- Offline-first inventory management
-- Inventory stock-in
-- Sales tracking
-- Stock adjustments
-- Stock counting
-- Compensating undo operations
+- Auditable inventory service layer
+- Sale / stock-in / adjustment / stock count / compensating undo
 - Negative-stock prevention
 - Required adjustment reasons
-- Versioned store migration
+- Versioned `.store` migration (V1 → V2)
 - Safe CSV export helpers
-- Automated regression tests
-- TypeScript type checking
-- Production build verification
+- Automated regression tests and CI support
 - Persistent project/session change logs
-- Security and production-readiness documentation
+- Production verification gate with explicit PASS / FAIL / SKIP results
+- Windows-safe npm verification handling
+- Security dependency remediation for Vite and Vitest
+- Final dependency audit verified with `npm audit`
+- Final project verification verified with `npm run verify`
 
----
+## Verified release status
 
-## Technology
+The v1.3.3 release baseline was verified on Windows with:
 
-- TypeScript
-- Vite `^7.3.6`
-- Vitest `^3.2.7`
-- Node.js
-- npm
+```text
+npm ci                         PASS
+npm audit                      0 vulnerabilities
+npm run typecheck              PASS
+npm test                       PASS
+npm run build                  PASS
+npm run verify                 FINAL RESULT: PASS
+                               PASS: 9 | FAIL: 0 | SKIP: 0
+```
 
----
+The verification gate records every check and does not record PASS unless the underlying command succeeds.
 
-## Requirements
-
-Use a supported Node.js version for Vite 7:
-- **Node:** `20.19+` or `22.12+`
-- **npm** is required.
-
----
-
-## Development & Usage
-
-### Installation
-
-Clone or download the repository, then run:
+## Install and verify
 
 ```bash
 npm ci
-```
-
-> **Note:** Using `npm ci` ensures that the dependency tree is installed from the committed `package-lock.json`.
-
-### Development
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-### Testing
-
-Run the automated tests:
-
-```bash
-npm test
-```
-
-### Type Checking
-
-Run TypeScript validation:
-
-```bash
+npm audit
 npm run typecheck
-```
-
-### Production Build
-
-Create the production build:
-
-```bash
+npm test
 npm run build
-```
-
-The production output is generated in: `dist/`
-
----
-
-## Full Verification
-
-The recommended verification command is:
-
-```bash
 npm run verify
 ```
 
-**The verification gate checks:**
-- npm availability
-- `package-lock.json`
-- Node.js compatibility
-- npm registry connectivity
-- npm cache integrity
-- clean `npm ci` installation
-- TypeScript type checking
-- automated tests
-- production build
+For a clean verification, use `npm ci` rather than relying on an existing `node_modules` directory.
 
-A successful release verification must report:
+## Node / tooling
 
-```text
-FINAL RESULT: PASS
-PASS: 9 | FAIL: 0 | SKIP: 0
-```
+Vite 7 requires a supported Node.js runtime. The verified v1.3.3 environment used a supported Node 20/22 line.
 
-*The verification script does not record a PASS when a required command fails or is skipped.*
-
-Verification logs are stored in: `docs/NPM-VERIFY-LOG.md`
-
----
+The release includes a `package-lock.json` and it must remain synchronized with `package.json`. When dependencies change, regenerate the lockfile with npm and re-run verification.
 
 ## Security
 
-The v1.3.3 dependency tree was checked with:
+The release initially exposed audit findings in older Vite and Vitest versions. These were remediated by updating the development dependencies.
 
-```bash
-npm audit
+Final verified versions:
+
+- Vite `^7.3.6`
+- Vitest `^3.2.7`
+- TypeScript `^5.8.3`
+
+Final audit result:
+
+```text
+found 0 vulnerabilities
 ```
 
-**Current result:** `0 vulnerabilities`
+See the security and verification documents under `docs/` for the complete remediation and verification trail.
 
-During release hardening, vulnerabilities affecting older Vite and Vitest versions were identified and remediated by updating the development dependencies.
+## Deployment
 
-**Current versions:**
-- `vite`: `^7.3.6`
-- `vitest`: `^3.2.7`
+The application is designed for static hosting after `npm run build`. The generated `dist/` directory is the deployment output.
 
-Security remediation details are documented in `docs/SECURITY-REMEDIATION-v1.3.3.md`. See also `SECURITY.md`.
+The verified v1.3.3 baseline is maintained in GitHub and hosted through Cloudflare as the foundation for subsequent feature development.
 
----
+## Release hygiene
 
-## Verification and Repair History
+The source release package intentionally excludes generated/local-only content:
 
-The project includes documentation of the issues encountered and how they were resolved.
+```text
+node_modules/
+dist/
+.vite/
+.env
+.env.local
+```
 
-**Important records:**
+These files/directories should not be committed to the public repository.
+
+## Documentation
+
+Important release records are maintained in:
+
 - `docs/NPM-VERIFY-LOG.md`
-- `docs/VERIFICATION-REPAIR-LOG-v1.3.3.md`
 - `docs/NPM-ROOT-CAUSE-v1.3.3.md`
+- `docs/VERIFICATION-REPAIR-LOG-v1.3.3.md`
 - `docs/SECURITY-REMEDIATION-v1.3.3.md`
 - `docs/FINAL-VERIFICATION-v1.3.3.md`
 - `docs/QA-RESULTS-v1.3.3.md`
-- `docs/PROJECT-LOG.md`
 - `docs/STABILIZATION-LOG-v1.3.3.md`
-- `docs/release-v1.3.3.md`
+- `docs/PROJECT-LOG.md`
+- `docs/SESSION-HANDOFF.md`
+- `CHANGELOG.md`
 
-These records document the verification failures, dependency/lockfile repair, Windows-specific npm issues, Node.js compatibility correction, security remediation, and final successful verification.
+## Status
 
----
+**v1.3.3 — verified stable baseline / production-candidate foundation.**
 
-## Release Integrity
-
-The repository includes `AUDIT-MANIFEST.sha256` to record SHA-256 checksums for release files.
-
-The release artifact intentionally excludes generated/local dependency directories such as:
-- `node_modules/`
-- `dist/`
-- `.vite/`
-- `.env`
-- `.env.local`
-
-Dependencies should be installed from the committed lockfile using `npm ci`.
-
----
-
-## Project Structure
-
-```text
-.
-├── .github/
-├── docs/
-├── public/
-├── scripts/
-├── src/
-├── tests/
-├── AUDIT-MANIFEST.sha256
-├── CHANGELOG.md
-├── CODE_OF_CONDUCT.md
-├── CONTRIBUTING.md
-├── LICENSE
-├── README.md
-├── SECURITY.md
-├── VERSION
-├── icon.svg
-├── index.html
-├── manifest.webmanifest
-├── package-lock.json
-├── package.json
-└── tsconfig.json
-```
-
----
-
-## Production Readiness
-
-The v1.3.3 codebase has passed the automated npm verification gate and has no reported npm audit vulnerabilities at release time.
-
-Before deploying to a public production environment, perform deployment-specific acceptance testing, including:
-- Real-device testing
-- Browser compatibility testing
-- Accessibility checks
-- Offline behavior verification
-- Storage failure/recovery testing
-- Production deployment verification
-- Cloudflare deployment/runtime checks
-
-*Automated verification passing does not replace application-level manual acceptance testing.*
-
----
-
-## Documentation & Governance
-
-- **License:** See `LICENSE`.
-- **Contributing:** See `CONTRIBUTING.md`.
-- **Security Reporting:** See `SECURITY.md` for guidance.
+Further real-device, accessibility, offline-storage-failure, and deployment acceptance testing should still be performed as appropriate before treating a deployment as fully production-ready.
