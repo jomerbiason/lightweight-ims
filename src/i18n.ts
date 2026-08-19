@@ -24,7 +24,9 @@ const en:Record<string,string>={
  notifyBody:'{low} low/out-of-stock, {exp} expiring soon.',
  salesTrend:'Sales (last 7 days)',date:'Date',topSellers30:'Top Sellers (30d)',
  scan:'Scan',cancel:'Cancel',scanUnsupported:'Barcode scanning is not supported on this device or browser.',
- scanCameraError:'Could not access the camera.'
+ scanCameraError:'Could not access the camera.',
+ receipt:'Receipt',share:'Share',copy:'Copy',copied:'Copied to clipboard.',total:'Total',
+ thankYou:'Thank you for your purchase!'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -50,7 +52,9 @@ const fil:Record<string,string>={
  notifyBody:'{low} paubos/wala na, {exp} malapit nang mag-expire.',
  salesTrend:'Benta (huling 7 araw)',date:'Petsa',topSellers30:'Pinakabenta (30d)',
  scan:'Scan',cancel:'Kanselahin',scanUnsupported:'Hindi supported ang barcode scanning sa device o browser na ito.',
- scanCameraError:'Hindi ma-access ang camera.'
+ scanCameraError:'Hindi ma-access ang camera.',
+ receipt:'Resibo',share:'I-share',copy:'Kopyahin',copied:'Nakopya sa clipboard.',total:'Kabuuan',
+ thankYou:'Salamat sa inyong pagbili!'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

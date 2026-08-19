@@ -108,6 +108,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .scan-overlay .scan-box{position:relative;width:min(280px,70vw);aspect-ratio:1.6;border:3px solid #fff;border-radius:12px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.45)}
 .scan-overlay #scan-cancel{position:absolute;bottom:32px;left:50%;transform:translateX(-50%)}
+.receipt{font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;white-space:pre-wrap;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:16px;font-size:.88rem;line-height:1.6}
 .hero{background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-radius:var(--radius-lg);
   padding:28px;box-shadow:0 16px 40px color-mix(in srgb,var(--accent) 25%,transparent);position:relative;overflow:hidden}
 .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%,rgba(255,255,255,.14),transparent 55%)}
