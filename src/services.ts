@@ -1,4 +1,4 @@
-import type { StoreData, Product, TxType, InventoryTransaction } from './domain';
+import type { StoreData, Product, TxType, InventoryTransaction, Customer, CreditType, CreditEntry } from './domain';
 import { id, now, validQty } from './domain';
 
 export class DomainError extends Error {}
@@ -93,6 +93,36 @@ export function reverseTransaction(d: StoreData, transactionId: string): Invento
   if (d.transactions.some(t => t.referenceId === original.id)) throw new DomainError('This transaction has already been reversed.');
   const p = get(d, original.productId, true);
   return commit(d, p, 'REVERSAL', -original.quantityChange, 'Undo last action', original.id);
+}
+
+const commitCredit = (d: StoreData, c: Customer, type: CreditType, amount: number, reason?: string, referenceId?: string): CreditEntry => {
+  c.balance = c.balance + (type === 'CHARGE' ? amount : -amount);
+  c.updatedAt = now();
+  const entry: CreditEntry = { id: id(), customerId: c.id, type, amount, timestamp: now(), ...(reason ? { reason } : {}), ...(referenceId ? { referenceId } : {}) };
+  d.creditLedger.push(entry);
+  return entry;
+};
+
+const getCustomer = (d: StoreData, customerId: string): Customer => {
+  const c = d.customers.find(x => x.id === customerId && !x.archived);
+  if (!c) throw new DomainError('Customer not found or archived.');
+  return c;
+};
+
+const positiveAmount = (n: number) => {
+  if (!Number.isFinite(n) || n <= 0) throw new DomainError('Amount must be a positive number.');
+  return n;
+};
+
+export function chargeCustomer(d: StoreData, customerId: string, amount: number, reason?: string, referenceId?: string): CreditEntry {
+  return commitCredit(d, getCustomer(d, customerId), 'CHARGE', positiveAmount(amount), reason, referenceId);
+}
+
+export function recordPayment(d: StoreData, customerId: string, amount: number, reason?: string): CreditEntry {
+  const c = getCustomer(d, customerId);
+  const amt = positiveAmount(amount);
+  if (amt > c.balance) throw new DomainError('Payment cannot exceed the outstanding balance.');
+  return commitCredit(d, c, 'PAYMENT', amt, reason);
 }
 
 export function suggestShopping(d: StoreData) {

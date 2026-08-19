@@ -1,8 +1,8 @@
 import type { StoreData } from './domain';
 
 const DB = 'lightweight-ims';
-const VER = 3;
-const STORES = ['store','categories','products','transactions','shoppingList','sessions','settings','snapshots'] as const;
+const VER = 4;
+const STORES = ['store','categories','products','transactions','shoppingList','sessions','customers','suppliers','creditLedger','settings','snapshots'] as const;
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function openDb() {
@@ -23,7 +23,7 @@ export async function save(data: StoreData) {
   const database = await openDb();
   const tx = database.transaction(STORES.filter(s => s !== 'snapshots'), 'readwrite');
   tx.objectStore('store').clear(); tx.objectStore('store').put(data.store);
-  for (const [name, values] of [['categories',data.categories],['products',data.products],['transactions',data.transactions],['shoppingList',data.shoppingList],['sessions',data.sessions]] as const) {
+  for (const [name, values] of [['categories',data.categories],['products',data.products],['transactions',data.transactions],['shoppingList',data.shoppingList],['sessions',data.sessions],['customers',data.customers],['suppliers',data.suppliers],['creditLedger',data.creditLedger]] as const) {
     const os = tx.objectStore(name); os.clear(); for (const value of values) os.put(value);
   }
   const settings = tx.objectStore('settings'); settings.clear(); settings.put({ id: 'settings', ...data.settings });
@@ -46,5 +46,5 @@ export async function load(): Promise<StoreData|null> {
   if (!store) return null;
   const settingsRows = await getAll(database, 'settings');
   const settings = settingsRows[0] ?? { id:'settings' };
-  return { store, categories: await getAll(database,'categories'), products: await getAll(database,'products'), transactions: await getAll(database,'transactions'), shoppingList: await getAll(database,'shoppingList'), sessions: await getAll(database,'sessions'), settings: Object.fromEntries(Object.entries(settings).filter(([k]) => k !== 'id')) };
+  return { store, categories: await getAll(database,'categories'), products: await getAll(database,'products'), transactions: await getAll(database,'transactions'), shoppingList: await getAll(database,'shoppingList'), sessions: await getAll(database,'sessions'), customers: await getAll(database,'customers'), suppliers: await getAll(database,'suppliers'), creditLedger: await getAll(database,'creditLedger'), settings: Object.fromEntries(Object.entries(settings).filter(([k]) => k !== 'id')) };
 }

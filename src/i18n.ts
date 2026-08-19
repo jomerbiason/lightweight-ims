@@ -30,7 +30,15 @@ const en:Record<string,string>={
  add:'Add',cart:'Cart',clearCart:'Clear cart',checkout:'Checkout',notEnoughStock:'Not enough stock.',
  removeItem:'Remove',frequentlySold:'Frequently sold',
  expiringSoon:'Expiring Soon',expiringSoonHint:'Consider discounting these to sell them before they expire.',
- expiry:'Expiry'
+ expiry:'Expiry',
+ customers:'Customers',addCustomer:'Add Customer',totalOwed:'Total owed',name:'Name',balance:'Balance',
+ recordPayment:'Record Payment',noCustomers:'No customers yet.',phone:'Phone',amount:'Amount',
+ paymentRecorded:'Payment recorded.',chargeTo:'Charge to',cash:'Cash',chargedTo:'Charged to',
+ type:'Type',charge:'Charge',payment:'Payment',reason:'Reason',
+ suppliers:'Suppliers',addSupplier:'Add Supplier',noSuppliers:'No suppliers yet.',supplier:'Supplier',
+ expectedCash:'Expected cash',actualCashPrompt:'Enter the actual cash count to close the session:',
+ invalidAmount:'Enter a valid amount.',sessionClosed:'Store session closed.',variance:'Variance',
+ openingCashPrompt:'Enter the opening cash amount (or leave 0):',sessionOpened:'Store session opened.'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -62,7 +70,15 @@ const fil:Record<string,string>={
  add:'Idagdag',cart:'Cart',clearCart:'I-clear ang cart',checkout:'Checkout',notEnoughStock:'Hindi sapat ang stock.',
  removeItem:'Alisin',frequentlySold:'Madalas mabenta',
  expiringSoon:'Malapit nang Mag-expire',expiringSoonHint:'Isaalang-alang ang pag-discount para mabenta agad bago mag-expire.',
- expiry:'Expiry'
+ expiry:'Expiry',
+ customers:'Customers',addCustomer:'Magdagdag ng Customer',totalOwed:'Kabuuang utang',name:'Pangalan',balance:'Balanse',
+ recordPayment:'I-record ang Bayad',noCustomers:'Wala pang customer.',phone:'Telepono',amount:'Halaga',
+ paymentRecorded:'Na-record ang bayad.',chargeTo:'Ipautang kay',cash:'Cash',chargedTo:'Ipinautang kay',
+ type:'Uri',charge:'Utang',payment:'Bayad',reason:'Dahilan',
+ suppliers:'Suppliers',addSupplier:'Magdagdag ng Supplier',noSuppliers:'Wala pang supplier.',supplier:'Supplier',
+ expectedCash:'Inaasahang cash',actualCashPrompt:'Ilagay ang aktwal na cash count para isara ang session:',
+ invalidAmount:'Maglagay ng tamang halaga.',sessionClosed:'Naisara ang store session.',variance:'Variance',
+ openingCashPrompt:'Ilagay ang opening cash (o iwanang 0):',sessionOpened:'Nabuksan ang store session.'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

@@ -148,3 +148,23 @@ Install dependencies, run `npm test`, `npm run typecheck`, and `npm run build`, 
 - **Why:** the app is a private, single-user, offline-first PWA with no backend or accounts. AdSense is a poor fit (requires network, low traffic per user since each install is single-user). A subscription would require a backend, accounts, and online payment verification, which contradicts the zero-setup offline-first design.
 - **Direction to implement later:** free tier with some limit/feature gate (e.g. product count cap, or gating barcode scanning / receipts / multi-language), unlocked via a one-time purchase producing a license key (e.g. via Gumroad, PayPal.me, or Buy Me a Coffee) that is entered manually and verified **offline** (e.g. a signed/hashed key check, no backend call required) — keeps the app's offline-first, no-account model intact.
 - **Status:** deferred — no code changes made yet. Revisit and define the exact free-vs-Pro feature split before implementation.
+
+## 2026-08-20 — Small-store feature batch (cart, credit, suppliers, cash reconciliation)
+
+Implemented the following SMB-focused features, requested to be done back-to-back:
+
+1. **Multi-item cart checkout** — Sales page reworked into a cart: add multiple products with quantities, then check out as one grouped sale (items share a generated `referenceId`) with a single combined receipt. No schema/version change; reused the existing `referenceId` field on `InventoryTransaction`.
+2. **Frequently-sold quick-add** — Sales page shows a chip strip of the top products sold in the last 30 days for one-tap add-to-cart.
+3. **Expiring-soon alerts** — Low Stock page now also lists active products expiring soon/expired with a quick Sell action, as a discount-before-it-expires prompt.
+4. **Utang/Lista (customer credit tracking)** — New `customers` and `creditLedger` entities. Customers page lists balances; sale checkout can "charge to" a customer instead of cash; Record Payment reduces balance; per-customer ledger history is viewable.
+5. **Lightweight supplier registry** — New `suppliers` entity (name/phone/archived) manageable from Store tools; Add Stock can tag a supplier, which is appended to the stock-in reason text (no new transaction field, kept additive).
+6. **Cash drawer reconciliation** — `StoreSession` gained optional `openingCash/closingCash/expectedCash/variance` fields. Opening a session prompts for a starting cash float; closing prompts for the actual cash count and computes variance against opening cash + sales recorded during the session (assumes cash-only sales, since the app has no payment-method field — a reasonable approximation for this use case).
+
+**Data model changes:** `.store` `FORMAT_VERSION` bumped 2 → 3 (adds `customers`, `suppliers`, `creditLedger` arrays to `StoreData`); IndexedDB `VER` bumped 3 → 4 (adds matching object stores). Both are additive and migration-safe — `migrate()` backfills empty arrays for older files, and the IDB `onupgradeneeded` handler creates the new object stores in place without touching existing data. Verified locally that an existing v3 IndexedDB store upgrades to v4 with all prior data intact.
+
+**Verification:** `npm run typecheck`, `npm test` (32/32 passing, including new credit-ledger regression tests), and `npm run build` all passed. Manually verified in-browser: multi-item cart → combined receipt → grouped receipt reopened from History; utang charge → customer balance increases → payment recorded → ledger shows both entries; supplier tagging appears in stock-in history reason; session open/close cash reconciliation flow.
+
+### Deferred (not implemented — flagged for a future session)
+
+- **Multi-unit pricing** (e.g. selling both "tingi"/piece and "bulk"/case of the same product at different prices). Deferred because it changes the core stock/pricing model that CSV import/export, reporting, and the sale/stock-in math all depend on — needs a dedicated design pass rather than being bolted on inside this batch, to avoid risking the correctness of existing stock/money math.
+- **Per-staff PIN / cashier attribution** (distinct from the existing single device-level PIN lock added earlier). Deferred because it implies a "current staff" concept that would need to thread through every transaction for attribution — a meaningfully larger feature than a simple settings toggle, better scoped on its own.

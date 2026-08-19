@@ -7,7 +7,7 @@ const make = (): StoreData => ({
   store: { id: 's', name: 'S', currency: 'PHP', language: 'fil', timezone: 'UTC', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), snapshotVersion: 1, snapshotId: 'snap' },
   categories: [],
   products: [{ id: 'p', name: 'Rice', sellingPrice: 50, stock: 10, reorderLevel: 2, targetStock: 20, unit: 'pcs', active: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }],
-  transactions: [], shoppingList: [], sessions: [], settings: {}
+  transactions: [], shoppingList: [], sessions: [], customers: [], suppliers: [], creditLedger: [], settings: {}
 });
 
 describe('V1.3 compatibility and hardening', () => {
@@ -54,7 +54,7 @@ describe('V1.3 compatibility and hardening', () => {
   it('migrates a V1 store file to V2', () => {
     const x: any = { format: 'open-store', formatVersion: 1, store: { id: 's', name: 'S', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, products: [], transactions: [], shoppingList: [], categories: [] };
     const migrated: any = migrateStore(x);
-    expect(migrated.formatVersion).toBe(2);
+    expect(migrated.formatVersion).toBe(3);
     expect(migrated.applicationVersion).toBe('1.3.3');
   });
 
