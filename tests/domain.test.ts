@@ -1,0 +1,3 @@
+import {describe,it,expect} from "vitest";import {status,estimatedProfit} from "../src/domain";
+const p:any={id:"p",name:"Coke",sellingPrice:85,costPrice:70,stock:4,reorderLevel:5,targetStock:20};
+describe("inventory rules",()=>{it("detects status",()=>{expect(status({...p,stock:0})).toBe("out");expect(status({...p,stock:5})).toBe("low");expect(status({...p,stock:6})).toBe("normal")});it("calculates estimated profit",()=>{const x=estimatedProfit([{id:"t",productId:"p",type:"SALE",quantityChange:-2,previousQuantity:4,newQuantity:2,timestamp:""}] as any,[p]);expect(x.salesTotal).toBe(170);expect(x.cost).toBe(140);expect(x.profit).toBe(30)})})

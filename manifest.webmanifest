@@ -1,0 +1,10 @@
+{
+  "name": "Lightweight IMS",
+  "short_name": "IMS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#166534",
+  "description": "Offline-first sari-sari store inventory.",
+  "icons": [{"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml"}]
+}
