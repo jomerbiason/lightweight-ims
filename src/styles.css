@@ -133,6 +133,21 @@ summary:hover{color:var(--text)}
 .swatch{width:28px;height:28px;border-radius:50%;border:2px solid var(--surface);outline:1px solid var(--border);
   padding:0;transition:transform .1s}
 .swatch:hover{transform:scale(1.12)}
+.tip-btn{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;padding:0;
+  background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);border:0;
+  font-size:.78rem;font-weight:700;font-style:normal;vertical-align:middle;line-height:1}
+:root[data-theme="dark"] .tip-btn{color:#4ade80}
+.tip-btn:hover{background:color-mix(in srgb,var(--accent) 26%,transparent)}
+.tip-bubble{position:absolute;z-index:50;max-width:min(320px,80vw);background:var(--text);color:var(--bg);
+  padding:12px 14px;border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);font-size:.86rem;line-height:1.5;
+  animation:toast-in .15s ease-out}
+:root[data-theme="dark"] .tip-bubble{background:#eef2fb;color:#0b1220}
+.about-body h3{margin:18px 0 6px;font-size:1rem}
+.about-body h3:first-of-type{margin-top:14px}
+.about-body p{color:var(--text);font-size:.94rem;line-height:1.6}
+.about-steps{margin:0;padding-left:0;list-style:none;display:grid;gap:8px}
+.about-steps li{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:10px 12px;font-size:.92rem}
 @media(max-width:600px){
  .topbar{padding:12px 16px;align-items:flex-start}
  .container{padding:16px 14px 110px}
@@ -143,4 +158,5 @@ summary:hover{color:var(--text)}
  .listrow{align-items:flex-start;flex-direction:column;padding:12px 14px}.listrow>div{width:100%}
  .settings-grid{grid-template-columns:1fr}
  .hero{padding:20px}.hero h1{font-size:1.35rem}
+ .tip-btn{width:30px;height:30px;font-size:.85rem}
 }
