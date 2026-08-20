@@ -92,7 +92,16 @@ export function reverseTransaction(d: StoreData, transactionId: string): Invento
   if (original.type === 'SALE_REVERSAL' || original.type === 'REVERSAL') throw new DomainError('A reversal cannot be reversed.');
   if (d.transactions.some(t => t.referenceId === original.id)) throw new DomainError('This transaction has already been reversed.');
   const p = get(d, original.productId, true);
-  return commit(d, p, 'REVERSAL', -original.quantityChange, 'Undo last action', original.id);
+  const reversal = commit(d, p, 'REVERSAL', -original.quantityChange, 'Undo last action', original.id);
+  if (original.type === 'SALE' && original.referenceId) {
+    const charge = d.creditLedger.find(e => e.type === 'CHARGE' && e.referenceId === original.referenceId);
+    const customer = charge && d.customers.find(c => c.id === charge.customerId);
+    if (charge && customer) {
+      const lineAmount = -original.quantityChange * (original.salePrice ?? 0);
+      if (lineAmount > 0) commitCredit(d, customer, 'PAYMENT', lineAmount, 'Sale reversed', original.id);
+    }
+  }
+  return reversal;
 }
 
 const commitCredit = (d: StoreData, c: Customer, type: CreditType, amount: number, reason?: string, referenceId?: string): CreditEntry => {
