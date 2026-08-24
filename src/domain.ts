@@ -14,4 +14,8 @@ export const id=()=>crypto.randomUUID(),now=()=>new Date().toISOString();
 export const status=(p:Product)=>p.stock<=0?"out":p.stock<=p.reorderLevel?"low":"normal";
 export function expirationStatus(p:Product, today=new Date()){if(!p.expirationDate)return "none";const d=new Date(p.expirationDate+"T23:59:59").getTime();const days=(d-today.getTime())/86400000;if(days<0)return "expired";if(days<=7)return "soon";return "normal";}
 export const validQty=(n:number)=>Number.isInteger(n)&&Number.isFinite(n)&&n>=0;
+export function unreversedSales(transactions:InventoryTransaction[]):InventoryTransaction[]{
+  const reversedIds=new Set(transactions.filter(t=>t.type==='REVERSAL'&&t.referenceId).map(t=>t.referenceId));
+  return transactions.filter(t=>t.type==='SALE'&&!reversedIds.has(t.id));
+}
 export function estimatedProfit(ts:InventoryTransaction[],ps:Product[]){let salesTotal=0,cost=0;for(const t of ts.filter(x=>x.type==="SALE")){const p=ps.find(x=>x.id===t.productId);const price=t.salePrice??p?.sellingPrice;const unitCost=t.saleCost??p?.costPrice??0;if(typeof price==='number'&&Number.isFinite(price)){salesTotal+=-t.quantityChange*price;cost+=-t.quantityChange*unitCost}}return{salesTotal,cost,profit:salesTotal-cost}}

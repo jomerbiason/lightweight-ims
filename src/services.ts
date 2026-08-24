@@ -130,7 +130,7 @@ export function chargeCustomer(d: StoreData, customerId: string, amount: number,
 export function recordPayment(d: StoreData, customerId: string, amount: number, reason?: string): CreditEntry {
   const c = getCustomer(d, customerId);
   const amt = positiveAmount(amount);
-  if (amt > c.balance) throw new DomainError('Payment cannot exceed the outstanding balance.');
+  if (amt > c.balance + 1e-6) throw new DomainError('Payment cannot exceed the outstanding balance.');
   return commitCredit(d, c, 'PAYMENT', amt, reason);
 }
 
