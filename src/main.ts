@@ -143,7 +143,14 @@ function calcEvaluate(expr:string):number{
   }
   return result;
 }
-function calculatorView(){return `<section class="section card"><h2>🧮 ${t(data!,'calculator')}</h2><div class="calc-display"><div class="calc-expr">${esc(calcExpr)||'&nbsp;'}</div><div class="calc-result">${esc(calcResult)||'0'}</div></div><div class="calc-grid">${['C','⌫','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','='].map(k=>`<button type="button" class="calc-btn${'÷×−+='.includes(k)?' calc-op':''}${k==='C'?' calc-clear':''}" data-calc="${k}">${k}</button>`).join('')}</div></section>`}
+function calcKey(k:string){return `<button type="button" class="calc-btn${'÷×−+'.includes(k)?' calc-op':''}${k==='='?' calc-equals':''}${k==='C'?' calc-clear':''}" data-calc="${k}">${k}</button>`}
+function calculatorView(){return `<section class="section card"><h2>🧮 ${t(data!,'calculator')}</h2><div class="calc-display"><div class="calc-expr">${esc(calcExpr)||'&nbsp;'}</div><div class="calc-result">${esc(calcResult)||'0'}</div></div><div class="calc-grid">
+  ${calcKey('C')}${calcKey('⌫')}${calcKey('÷')}<div class="calc-spacer"></div>
+  ${calcKey('7')}${calcKey('8')}${calcKey('9')}${calcKey('×')}
+  ${calcKey('4')}${calcKey('5')}${calcKey('6')}${calcKey('−')}
+  ${calcKey('1')}${calcKey('2')}${calcKey('3')}${calcKey('+')}
+  <button type="button" class="calc-btn calc-zero" data-calc="0">0</button>${calcKey('.')}${calcKey('=')}
+</div></section>`}
 function notesView(){const val=String(data!.settings.notes||'');return `<section class="section card"><h2>📝 ${t(data!,'notes')}</h2><div class="muted" style="margin-bottom:10px">${t(data!,'notesHint')}</div><textarea id="notes-text" class="notes-textarea" placeholder="${t(data!,'notesPlaceholder')}">${esc(val)}</textarea></section>`}
 let notesTimer:number|undefined;
 function handleCalc(key:string){
