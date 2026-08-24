@@ -4,11 +4,13 @@ import { load, save, safetySnapshot } from './db';
 import { pack, unpack } from './storefile';
 import { t, locale } from './i18n';
 import { adjust, applyInventoryChange, chargeCustomer, recordPayment, recordSale, recordStockCount, reverseTransaction, stockIn, suggestShopping, todayKey } from './services';
+import { verifyLicenseKey, daysRemaining, type LicenseState } from './license';
+import { generateSyncCode, pushScan, pollScan } from './sync';
 
 let data: StoreData|null=null; let page='home'; let query=''; let toastTimer:number|undefined; let locked=false;
 let cart:{productId:string,qty:number}[]=[];
 let inventorySub:'products'|'low'|'buy'='products';
-let miscSub:'customers'|'calc'|'notes'='customers';
+let miscSub:'customers'|'calc'|'notes'|'online'='customers';
 let calcExpr='',calcResult='',calcJustEvaluated=false;
 const $=(s:string)=>document.querySelector(s) as HTMLElement;
 function esc(s:string){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!))}
@@ -121,7 +123,7 @@ function initialStore(name:string,language:'en'|'fil'='en'):StoreData{const t=no
 function nav(){const items=[['home',`🏪 ${t(data!,'home')}`],['sales',`🛒 ${t(data!,'sales')}`],['products',`📦 ${t(data!,'products')}`],['customers',`🧰 ${t(data!,'miscTab')}`],['history',`🕘 ${t(data!,'history')}`],['backup',`💾 ${t(data!,'backup')}`]];return `<nav class="nav">${items.map(([k,l])=>`<button class="${page===k?'active':''}" data-page="${k}">${l}</button>`).join('')}</nav>`}
 function subtabs(items:[string,string][],active:string,attr:string){return `<div class="subtabs">${items.map(([k,l])=>`<button type="button" class="chip${active===k?' active':''}" data-${attr}="${k}">${l}</button>`).join('')}</div>`}
 function inventoryPage(){const bar=subtabs([['products',t(data!,'products')],['low',t(data!,'low')],['buy',t(data!,'buy')]],inventorySub,'subtab-inv');const body=inventorySub==='products'?products():inventorySub==='low'?low():buy();return bar+body}
-function miscPage(){const bar=subtabs([['customers',t(data!,'customers')],['calc',t(data!,'calculator')],['notes',t(data!,'notes')]],miscSub,'subtab-misc');const body=miscSub==='customers'?customers():miscSub==='calc'?calculatorView():notesView();return bar+body}
+function miscPage(){const bar=subtabs([['customers',t(data!,'customers')],['calc',t(data!,'calculator')],['notes',t(data!,'notes')],['online',t(data!,'onlineMode')]],miscSub,'subtab-misc');const body=miscSub==='customers'?customers():miscSub==='calc'?calculatorView():miscSub==='notes'?notesView():onlineView();return bar+body}
 function calcTokens(expr:string){return expr.match(/(\d+\.?\d*|[+\-×÷])/g)||[]}
 function calcEvaluate(expr:string):number{
   const tokens=calcTokens(expr);
@@ -276,11 +278,11 @@ function reports(){const active=data!.products.filter(p=>p.active),sales=unrever
   const topSellers=[...soldQty.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([pid,qty])=>({name:data!.products.find(p=>p.id===pid)?.name||'Unknown',qty}));
   return `<section class="section grid"><div class="card"><h2>Current Inventory ${tip(t(data!,'tipReports'))}</h2><div class="stat">${active.length}</div><div class="muted">Active products</div></div><div class="card"><h2>Sales History</h2><div class="stat">${sales.reduce((n,t)=>n+(-t.quantityChange),0)}</div><div class="muted">Items sold</div></div><div class="card"><h2>Stock Movement</h2><div class="stat">${movements}</div><div class="muted">Transactions</div></div><div class="card"><h2>Low Stock</h2><div class="stat">${lowCount}</div></div><div class="card"><h2>Out of Stock</h2><div class="stat">${out}</div></div></section><section class="section card"><h2>${t(data!,'salesTrend')}</h2><div class="table-wrap"><table class="table"><thead><tr><th>${t(data!,'date')}</th><th>${t(data!,'sales')}</th></tr></thead><tbody>${dayTotals.map(d=>`<tr><td>${d.key}</td><td>${money(d.total)}</td></tr>`).join('')}</tbody></table></div></section><section class="section card"><h2>${t(data!,'topSellers30')}</h2>${topSellers.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Product</th><th>Qty sold</th></tr></thead><tbody>${topSellers.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.qty}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">${t(data!,'noSalesYet')}</div>`}</section>`}
 function backup(){return `<section class="section grid"><div class="card"><h2>💾 ${t(data!,'backupTitle')} ${tip(t(data!,'tipBackup'))}</h2><p>${t(data!,'backupBody')}</p><button class="primary" id="export">${t(data!,'saveStoreFile')}</button></div><div class="card"><h2>${t(data!,'restoreTitle')}</h2><p>${t(data!,'restoreBody')}</p><input id="import-file" type="file" accept=".store,application/json"><p class="muted">${t(data!,'restoreHint')}</p></div><div class="card"><h2>CSV ${tip(t(data!,'tipCsv'))}</h2><p>${t(data!,'csvBody')}</p><button class="secondary" id="csv-products">${t(data!,'products')}</button><button class="secondary" id="csv-sales">${t(data!,'sales')}</button><button class="secondary" id="csv-movement">${t(data!,'inventoryMovements')}</button><hr><label>${t(data!,'importProducts')}<input id="csv-import-file" type="file" accept=".csv,text/csv"></label></div><div class="card"><h2>${t(data!,'settings')}</h2><label><input id="session-toggle" type="checkbox"> ${t(data!,'storeSessions')}</label><p class="muted">${t(data!,'storeSessionsHint')}</p></div></section>`}
-async function scanBarcode(targetInputId:string){
-  if(!('BarcodeDetector' in window))return alert(t(data!,'scanUnsupported'));
+async function openScanOverlay(onDetect:(code:string)=>boolean):Promise<{stop:()=>void}|undefined>{
+  if(!('BarcodeDetector' in window)){alert(t(data!,'scanUnsupported'));return}
   let stream:MediaStream;
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}
-  catch(e){return alert(t(data!,'scanCameraError'))}
+  catch(e){alert(t(data!,'scanCameraError'));return}
   const video=document.createElement('video');video.srcObject=stream;video.setAttribute('playsinline','');video.setAttribute('muted','');await video.play();
   const overlay=document.createElement('div');overlay.className='scan-overlay';
   overlay.append(video);
@@ -293,10 +295,75 @@ async function scanBarcode(targetInputId:string){
   const detector=new (window as any).BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
   const tick=async()=>{
     if(stopped)return;
-    try{const codes=await detector.detect(video);if(codes.length){const input=document.querySelector('#'+targetInputId) as HTMLInputElement;if(input)input.value=codes[0].rawValue;stop();return}}catch{}
+    try{const codes=await detector.detect(video);if(codes.length){const shouldStop=onDetect(codes[0].rawValue);if(shouldStop){stop();return}}}catch{}
     requestAnimationFrame(tick);
   };
   tick();
+  return {stop};
+}
+async function scanBarcode(targetInputId:string){
+  await openScanOverlay(code=>{const input=document.querySelector('#'+targetInputId) as HTMLInputElement;if(input)input.value=code;return true});
+}
+let syncScannerHandle:{stop:()=>void}|undefined;
+async function startScannerMode(code:string){
+  if(syncScannerHandle)return;
+  let lastSent='',lastSentAt=0;
+  const handle=await openScanOverlay(barcode=>{
+    const nowMs=Date.now();
+    if(barcode!==lastSent||nowMs-lastSentAt>2000){
+      lastSent=barcode;lastSentAt=nowMs;
+      pushScan(code,barcode);
+      toast(`${t(data!,'scanSent')}: ${barcode}`);
+    }
+    return false;
+  });
+  syncScannerHandle=handle;
+}
+function stopScannerMode(){syncScannerHandle?.stop();syncScannerHandle=undefined}
+let syncPollTimer:number|undefined;
+function startSyncPolling(code:string){
+  stopSyncPolling();
+  syncPollTimer=window.setInterval(async()=>{
+    const barcode=await pollScan(code);
+    if(barcode)handleIncomingScan(barcode);
+  },2500);
+}
+function stopSyncPolling(){if(syncPollTimer){clearInterval(syncPollTimer);syncPollTimer=undefined}}
+function handleIncomingScan(barcode:string){
+  if(!data)return;
+  const p=data.products.find(x=>x.barcode===barcode&&x.active);
+  if(!p){toast(`${t(data,'unknownBarcode')}: ${barcode}`);return}
+  if(p.stock<=0){toast(`${esc(p.name)}: ${t(data,'outOfStock')}`);return}
+  const existing=cart.find(c=>c.productId===p.id);
+  if(existing){if(existing.qty<p.stock)existing.qty++}
+  else cart.push({productId:p.id,qty:1});
+  toast(`${t(data,'add')}: ${p.name}`);
+  if(page==='sales')render();
+}
+function licenseState():LicenseState|null{
+  const lic=data!.settings.license as LicenseState|undefined;
+  if(!lic)return null;
+  if(new Date(lic.expiresAt).getTime()<Date.now())return null;
+  return lic;
+}
+function onlineView(){
+  const lic=licenseState();
+  if(!lic)return `<section class="section card"><h2>🌐 ${t(data!,'onlineMode')} ${tip(t(data!,'tipOnlineMode'))}</h2><div class="muted" style="margin-bottom:12px">${t(data!,'onlineLicenseRequired')}</div><form class="form" id="license-form"><label>${t(data!,'licenseKey')}<input name="key" placeholder="xxxxx.xxxxx" required></label><button class="primary">${t(data!,'activate')}</button></form></section>`;
+  const code=String(data!.settings.syncCode||'');
+  const role=String(data!.settings.syncRole||'');
+  return `<section class="section card"><h2>🌐 ${t(data!,'onlineMode')}</h2>
+    <div class="muted" style="margin-bottom:12px">${t(data!,'licenseActive')}: ${esc(lic.tier)} — ${daysRemaining(lic.expiresAt)} ${t(data!,'daysLeft')}</div>
+    ${code?`<p>${t(data!,'syncCode')}: <strong style="font-size:1.4rem;letter-spacing:.15em">${esc(code)}</strong></p>
+    <div class="actions" style="margin-bottom:14px">
+      <button type="button" class="secondary${role==='scanner'?' active':''}" id="role-scanner">📷 ${t(data!,'roleScanner')}</button>
+      <button type="button" class="secondary${role==='display'?' active':''}" id="role-display">🖥️ ${t(data!,'roleDisplay')}</button>
+      <button type="button" class="danger" id="leave-sync">${t(data!,'leaveSync')}</button>
+    </div>
+    ${role==='scanner'?`<button type="button" class="primary" id="start-scanning">📷 ${t(data!,'startScanning')}</button>`:''}
+    ${role==='display'?`<div class="muted">${t(data!,'listeningForScans')}</div>`:''}`
+    :`<div class="actions"><button type="button" class="primary" id="create-sync">${t(data!,'createSession')}</button></div>
+    <form class="form" id="join-sync-form" style="margin-top:14px"><label>${t(data!,'joinSession')}<input name="code" maxlength="6" pattern="[0-9]{6}" placeholder="123456" required></label><button class="secondary">${t(data!,'join')}</button></form>`}
+  </section>`;
 }
 function modal(title:string,body:string){const e=document.createElement('div');e.className='modal';e.innerHTML=`<div role="dialog" aria-modal="true"><div class="actions" style="justify-content:space-between"><h2>${title}</h2><button class="secondary" id="close">Close</button></div>${body}</div>`;document.body.append(e);e.querySelector('#close')!.addEventListener('click',()=>e.remove());return e}
 function addProduct(){const m=modal('Add Product',`<form class="form" id="pf"><label>Name<input name="name" required autofocus></label><label>Category<select name="category"><option value="">No category</option>${data!.categories.filter(c=>!c.archived).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><label>Barcode (optional)<div class="actions"><input name="barcode" id="add-barcode"><button type="button" class="secondary" id="scan-add-barcode">📷 ${t(data!,'scan')}</button></div></label><label>Selling Price<input name="price" type="number" min="0" step="0.01" required></label><label>Cost Price<input name="cost" type="number" min="0" step="0.01"></label><label>Initial Stock<input name="stock" type="number" min="0" step="1" value="0" required></label><label>${t(data!,'reorderLevel')} ${tip(t(data!,'tipReorderLevel'))}<input name="reorder" type="number" min="0" step="1" value="5"></label><label>${t(data!,'targetStock')} ${tip(t(data!,'tipTargetStock'))}<input name="target" type="number" min="0" step="1" value="20"></label><label>Unit<input name="unit" value="pcs"></label><label>Expiration (optional)<input name="expiration" type="date"></label><button class="primary">Save Product</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();try{const f=new FormData(e.target as HTMLFormElement);const p:Product={id:id(),name:String(f.get('name')).trim(),categoryId:String(f.get('category')||'')||undefined,barcode:String(f.get('barcode')||'')||undefined,sellingPrice:Number(f.get('price')),costPrice:String(f.get('cost')||'')===''?undefined:Number(f.get('cost')),stock:Number(f.get('stock')),reorderLevel:Number(f.get('reorder')),targetStock:Number(f.get('target')),unit:String(f.get('unit')||'pcs'),active:true,expirationDate:String(f.get('expiration')||'')||undefined,createdAt:now(),updatedAt:now()};if(!p.name||!Number.isFinite(p.sellingPrice)||p.sellingPrice<0||!Number.isInteger(p.stock)||p.stock<0)throw new Error('Check the product values.');data!.products.push(p);if(p.stock)applyInventoryChange(data!,p.id,p.stock,'INITIAL_STOCK','Initial stock');await persist();m.remove();toast('Product added.');render()}catch(err){alert((err as Error).message)}});m.querySelector('#scan-add-barcode')?.addEventListener('click',()=>scanBarcode('add-barcode'))}
@@ -399,7 +466,16 @@ document.querySelectorAll('[data-cart-inc]').forEach(e=>e.addEventListener('clic
 document.querySelectorAll('[data-cart-dec]').forEach(e=>e.addEventListener('click',()=>{const pid=(e as HTMLElement).dataset.cartDec!;const c=cart.find(x=>x.productId===pid);if(!c)return;c.qty--;if(c.qty<=0)cart=cart.filter(x=>x.productId!==pid);render()}));
 document.querySelectorAll('[data-cart-remove]').forEach(e=>e.addEventListener('click',()=>{const pid=(e as HTMLElement).dataset.cartRemove!;cart=cart.filter(x=>x.productId!==pid);render()}));
 $('#clear-cart')?.addEventListener('click',()=>{cart=[];render()});
-$('#checkout')?.addEventListener('click',checkout);$('#export')?.addEventListener('click',exportStore);$('#backup-now')?.addEventListener('click',exportStore);$('#csv-products')?.addEventListener('click',()=>csvExport('products'));$('#csv-sales')?.addEventListener('click',()=>csvExport('sales'));$('#csv-movement')?.addEventListener('click',()=>csvExport('movement'));$('#import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importStore(f)});$('#csv-import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importCsv(f)});document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{const next=(x as HTMLElement).dataset.page!;if(next!==page)query='';page=next;render()}));$('#categories')?.addEventListener('click',categoryManager);$('#suppliers')?.addEventListener('click',supplierManager);$('#session')?.addEventListener('click',sessions);$('#add-customer')?.addEventListener('click',addCustomerModal);document.querySelectorAll('[data-pay]').forEach(e=>e.addEventListener('click',()=>paymentModal((e as HTMLElement).dataset.pay!)));document.querySelectorAll('[data-ledger]').forEach(e=>e.addEventListener('click',()=>ledgerModal((e as HTMLElement).dataset.ledger!)));document.querySelectorAll('[data-subtab-inv]').forEach(e=>e.addEventListener('click',()=>{inventorySub=(e as HTMLElement).dataset.subtabInv as any;query='';render()}));document.querySelectorAll('[data-subtab-misc]').forEach(e=>e.addEventListener('click',()=>{miscSub=(e as HTMLElement).dataset.subtabMisc as any;render()}));document.querySelectorAll('[data-calc]').forEach(e=>e.addEventListener('click',()=>handleCalc((e as HTMLElement).dataset.calc!)));$('#notes-text')?.addEventListener('input',e=>{data!.settings.notes=(e.target as HTMLTextAreaElement).value;clearTimeout(notesTimer);notesTimer=setTimeout(()=>persist(),600)})}
+$('#checkout')?.addEventListener('click',checkout);$('#export')?.addEventListener('click',exportStore);$('#backup-now')?.addEventListener('click',exportStore);$('#csv-products')?.addEventListener('click',()=>csvExport('products'));$('#csv-sales')?.addEventListener('click',()=>csvExport('sales'));$('#csv-movement')?.addEventListener('click',()=>csvExport('movement'));$('#import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importStore(f)});$('#csv-import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importCsv(f)});document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{const next=(x as HTMLElement).dataset.page!;if(next!==page){query='';if(page==='customers')stopSyncPolling()}page=next;render()}));$('#categories')?.addEventListener('click',categoryManager);$('#suppliers')?.addEventListener('click',supplierManager);$('#session')?.addEventListener('click',sessions);$('#add-customer')?.addEventListener('click',addCustomerModal);document.querySelectorAll('[data-pay]').forEach(e=>e.addEventListener('click',()=>paymentModal((e as HTMLElement).dataset.pay!)));document.querySelectorAll('[data-ledger]').forEach(e=>e.addEventListener('click',()=>ledgerModal((e as HTMLElement).dataset.ledger!)));document.querySelectorAll('[data-subtab-inv]').forEach(e=>e.addEventListener('click',()=>{inventorySub=(e as HTMLElement).dataset.subtabInv as any;query='';render()}));document.querySelectorAll('[data-subtab-misc]').forEach(e=>e.addEventListener('click',()=>{if(miscSub==='online')stopSyncPolling();miscSub=(e as HTMLElement).dataset.subtabMisc as any;render()}));document.querySelectorAll('[data-calc]').forEach(e=>e.addEventListener('click',()=>handleCalc((e as HTMLElement).dataset.calc!)));$('#notes-text')?.addEventListener('input',e=>{data!.settings.notes=(e.target as HTMLTextAreaElement).value;clearTimeout(notesTimer);notesTimer=setTimeout(()=>persist(),600)});
+$('#license-form')?.addEventListener('submit',async e=>{e.preventDefault();const key=String(new FormData(e.target as HTMLFormElement).get('key')||'').trim();const r=await verifyLicenseKey(key);if(!r.valid){alert(r.expired?t(data!,'licenseExpired'):(r.error||t(data!,'licenseInvalid')));return}data!.settings.license={key,tier:r.payload!.tier,expiresAt:r.payload!.expiresAt};await persist();toast(t(data!,'licenseActivated'));render()});
+$('#create-sync')?.addEventListener('click',async()=>{data!.settings.syncCode=generateSyncCode();data!.settings.syncRole='';await persist();render()});
+$('#join-sync-form')?.addEventListener('submit',async e=>{e.preventDefault();const code=String(new FormData(e.target as HTMLFormElement).get('code')||'').trim();if(!/^\d{6}$/.test(code))return alert(t(data!,'syncCodeInvalid'));data!.settings.syncCode=code;data!.settings.syncRole='';await persist();render()});
+$('#leave-sync')?.addEventListener('click',async()=>{stopSyncPolling();stopScannerMode();delete data!.settings.syncCode;delete data!.settings.syncRole;await persist();render()});
+$('#role-scanner')?.addEventListener('click',async()=>{stopSyncPolling();data!.settings.syncRole='scanner';await persist();render()});
+$('#role-display')?.addEventListener('click',async()=>{stopScannerMode();data!.settings.syncRole='display';await persist();render()});
+$('#start-scanning')?.addEventListener('click',()=>{const code=String(data!.settings.syncCode||'');if(code)startScannerMode(code)});
+if(page==='customers'&&miscSub==='online'&&data!.settings.syncRole==='display'&&data!.settings.syncCode)startSyncPolling(String(data!.settings.syncCode));
+}
 function render(){if(!data)return;if(locked)return lockScreen();let content=page==='home'?home():page==='sales'?sales():page==='products'?inventoryPage():page==='customers'?miscPage():page==='history'?history():page==='reports'?reports():backup();if(page==='home')content+=`<section class="section card"><h2>${t(data,'storeTools')} ${tip(t(data,'tipStoreTools'))}</h2><div class="actions"><button class="secondary" data-page="reports">${t(data,'reports')}</button><button class="secondary" id="categories">${t(data,'categories')}</button><button class="secondary" id="suppliers">${t(data,'suppliers')}</button><button class="secondary" id="session">${data.sessions.some(s=>!s.closedAt)?t(data,'closeStore'):t(data,'openStore')}</button></div></section>`;layout(content);bind()}
 async function start(){try{data=await load();if(data){if(!data.settings)data.settings={};if(!data.settings.theme)data.settings.theme='system';if(!data.settings.accent)data.settings.accent='#166534';applyAppearance();locked=Boolean(data.settings.pin)}if(!data){const m=modal('Welcome to Lightweight IMS',`<form class="form"><p>Simple, offline-first inventory for your store.</p><label>Store Name<input name="name" required autofocus placeholder="Maria's Sari-Sari Store"></label><label>Language<select name="lang"><option value="en" selected>English</option><option value="fil">Filipino</option></select></label><button class="primary">START MY STORE</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target as HTMLFormElement);data=initialStore(String(f.get('name')),f.get('lang') as 'en'|'fil');applyAppearance();try{await save(data);m.remove();render()}catch(err){alert((err as Error).message)}});return}render();maybeNotify()}catch(e){$('#app').innerHTML=`<main class="container"><div class="card"><h1>Could not load the store</h1><p>We could not open your local store data. Please keep your .store backup safe.</p><p class="muted">${esc(String(e))}</p></div></main>`}}
 start();

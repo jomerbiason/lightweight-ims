@@ -168,3 +168,58 @@ Implemented the following SMB-focused features, requested to be done back-to-bac
 
 - **Multi-unit pricing** (e.g. selling both "tingi"/piece and "bulk"/case of the same product at different prices). Deferred because it changes the core stock/pricing model that CSV import/export, reporting, and the sale/stock-in math all depend on — needs a dedicated design pass rather than being bolted on inside this batch, to avoid risking the correctness of existing stock/money math.
 - **Per-staff PIN / cashier attribution** (distinct from the existing single device-level PIN lock added earlier). Deferred because it implies a "current staff" concept that would need to thread through every transaction for attribution — a meaningfully larger feature than a simple settings toggle, better scoped on its own.
+
+## 2026-08-24 — Online Mode: multi-device barcode sync + time-tiered license keys
+
+Implemented, superseding the earlier "one-time purchase only" monetization note above.
+
+**Decision revision:** monetization is now **time-tiered license keys** (7-day trial,
+1/6/12 months) sold manually by the owner (payment via GCash, outside the app), not a
+single one-time unlock. Keys gate the new Online Mode feature specifically.
+
+1. **License system** (`src/license.ts`, `scripts/generate-license.mjs`) — keys are
+   ECDSA (P-256) signed payloads `{tier, issuedAt, expiresAt}`, verified fully offline
+   in the client using only the embedded *public* key. The private key
+   (`license-private.local.json`, gitignored, never committed) stays with the app
+   owner; only they can mint valid keys, but verification needs no network/backend
+   call. Activated key is stored in `data.settings.license`.
+2. **Online Mode / multi-device barcode sync** — new 4th sub-tab under Miscellaneous.
+   Two devices pair via a random 6-digit Sync Code (no accounts). One device picks the
+   **Scanner** role (continuous camera barcode scanning, pushes each scan to the
+   relay) and the other picks **Display** (polls every 2.5s, auto-adds the matched
+   product to the Sales cart). Requires an active license.
+3. **Backend** — the Cloudflare Worker is no longer static-assets-only. Added
+   `worker/index.ts` (serves the built app via the `ASSETS` binding, plus
+   `/api/sync/:code/scan` and `/api/sync/:code/ping`) and `wrangler.toml` with a KV
+   namespace binding (`SYNC_KV`, free-tier compatible — chosen over Durable Objects
+   specifically to avoid requiring a paid Workers plan). Scanned barcodes are held in
+   KV for at most 60s and deleted on read (consume-once); rooms auto-expire after 6h
+   of inactivity. No store data (products/sales/money) ever passes through this API.
+
+**Deployment change:** the existing Cloudflare dashboard Git-integration build only
+publishes static assets and cannot attach a KV binding to a Worker script, so
+production deploys now go through `npm run deploy` (`vite build` + `wrangler deploy`)
+instead. Full manual setup steps (creating the KV namespace, filling in
+`wrangler.toml`, issuing license keys) are documented in
+[`docs/ONLINE-MODE-SETUP.md`](ONLINE-MODE-SETUP.md) — this requires the account
+owner's Cloudflare dashboard access, which this session did not have, so the KV
+namespace itself was not created and production has **not** been deployed with this
+feature live yet.
+
+**Verification:** `npm run typecheck`, `npm test` (41/41 passing, including new
+license-verification regression tests covering valid/expired/tampered/malformed
+keys), and `npm run build` all passed. The full pairing → scan → auto-add-to-cart
+flow, license activation, role switching, and "Leave session" were verified
+end-to-end locally against a real (locally-emulated) KV store via `wrangler dev`, not
+just mocked — confirmed a barcode pushed from a simulated "scanner" device was
+received by the "display" device's poll loop and correctly added the matching
+product to its cart, and that an unrecognized barcode was safely ignored.
+
+### Deferred / not yet done
+
+- **Production deploy of Online Mode** — requires the account owner to create the KV
+  namespace and run `npm run deploy` per `docs/ONLINE-MODE-SETUP.md`; not done by
+  this session (no Cloudflare account access here).
+- **In-app manual barcode entry fallback for camera-less scanner devices** — not
+  built; the Scanner role currently requires a working `BarcodeDetector`-capable
+  camera.

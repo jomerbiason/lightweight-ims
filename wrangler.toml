@@ -1,0 +1,15 @@
+name = "lightweight-ims"
+main = "worker/index.ts"
+compatibility_date = "2026-08-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+# Create this KV namespace yourself (Workers & Pages > KV > Create namespace),
+# then replace both ids below with the ones Cloudflare gives you.
+# `wrangler kv:namespace create SYNC_KV` prints both the production and preview ids.
+[[kv_namespaces]]
+binding = "SYNC_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+preview_id = "REPLACE_WITH_YOUR_KV_PREVIEW_NAMESPACE_ID"

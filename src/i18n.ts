@@ -76,7 +76,16 @@ const en:Record<string,string>={
  tipReports:'Shows how your store performed recently — what sold, what did not, and your daily totals.',
  miscTab:'Miscellaneous',calculator:'Calculator',notes:'Notes',
  notesHint:'Jot down quick reminders. Saved automatically on this device.',
- notesPlaceholder:'Type notes here...',calcError:'Error'
+ notesPlaceholder:'Type notes here...',calcError:'Error',
+ onlineMode:'Online',tipOnlineMode:'Pair two devices (e.g. a phone as a barcode scanner and a tablet as your main screen) using a shared Sync Code. Requires an active license.',
+ onlineLicenseRequired:'Online Mode requires an active license key. Contact the developer to purchase one.',
+ licenseKey:'License Key',activate:'Activate',licenseActive:'License active',daysLeft:'days left',
+ syncCode:'Sync Code',roleScanner:'Scanner',roleDisplay:'Display',leaveSync:'Leave',
+ startScanning:'Start Scanning',listeningForScans:'Listening for scans from the paired scanner device...',
+ createSession:'Create Sync Session',joinSession:'Join with a code',join:'Join',
+ syncCodeInvalid:'Enter the 6-digit code shown on the other device.',
+ licenseExpired:'This license key has expired.',licenseInvalid:'Invalid license key.',
+ licenseActivated:'License activated.',scanSent:'Scan sent',unknownBarcode:'Unknown barcode'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -154,7 +163,16 @@ const fil:Record<string,string>={
  tipReports:'Ipinapakita kung paano ang takbo ng tindahan mo kamakailan — ano ang nabenta, ano ang hindi, at kabuuan bawat araw.',
  miscTab:'Miscellaneous',calculator:'Calculator',notes:'Tala',
  notesHint:'Sulatin ang mabilisang paalala. Awtomatikong na-save dito sa device.',
- notesPlaceholder:'Mag-type ng tala dito...',calcError:'Error'
+ notesPlaceholder:'Mag-type ng tala dito...',calcError:'Error',
+ onlineMode:'Online',tipOnlineMode:'I-pares ang dalawang device (hal. phone bilang barcode scanner at tablet bilang pangunahing screen) gamit ang parehong Sync Code. Kailangan ng aktibong lisensya.',
+ onlineLicenseRequired:'Kailangan ng aktibong license key ang Online Mode. Makipag-ugnayan sa developer para bumili.',
+ licenseKey:'License Key',activate:'I-activate',licenseActive:'Aktibong lisensya',daysLeft:'araw na lang',
+ syncCode:'Sync Code',roleScanner:'Scanner',roleDisplay:'Display',leaveSync:'Umalis',
+ startScanning:'Simulan ang Pag-scan',listeningForScans:'Naghihintay ng scan mula sa naka-pares na scanner device...',
+ createSession:'Gumawa ng Sync Session',joinSession:'Sumali gamit ang code',join:'Sumali',
+ syncCodeInvalid:'Ilagay ang 6-digit na code na makikita sa ibang device.',
+ licenseExpired:'Nag-expire na ang license key na ito.',licenseInvalid:'Hindi valid na license key.',
+ licenseActivated:'Na-activate ang lisensya.',scanSent:'Naipadala ang scan',unknownBarcode:'Hindi kilalang barcode'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

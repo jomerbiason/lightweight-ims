@@ -63,6 +63,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .primary:hover{background:var(--accent-2);box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 40%,transparent)}
 .secondary{background:var(--surface);border-color:var(--border);color:var(--text)}
 .secondary:hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--border));background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.secondary.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 .danger{background:var(--danger);color:white}
 .danger:hover{background:#991b1b}
 .section{margin:22px 0}
