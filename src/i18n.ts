@@ -73,7 +73,10 @@ const en:Record<string,string>={
  tipCsv:'Useful if you want to check or edit your data in a spreadsheet program.',
  tipReorderLevel:'When stock falls to this number or below, the product will show up under Low Stock as a reminder to restock.',
  tipTargetStock:'This is how much stock you want to have on hand. The Shopping List uses this to suggest how much to buy.',
- tipReports:'Shows how your store performed recently — what sold, what did not, and your daily totals.'
+ tipReports:'Shows how your store performed recently — what sold, what did not, and your daily totals.',
+ miscTab:'Miscellaneous',calculator:'Calculator',notes:'Notes',
+ notesHint:'Jot down quick reminders. Saved automatically on this device.',
+ notesPlaceholder:'Type notes here...',calcError:'Error'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -148,7 +151,10 @@ const fil:Record<string,string>={
  tipCsv:'Magamit kung gusto mong tignan o i-edit ang datos mo sa spreadsheet program.',
  tipReorderLevel:'Kapag umabot o bumaba ang stock sa bilang na ito, lalabas ang produkto sa Paubos bilang paalala na mag-restock.',
  tipTargetStock:'Ito ang gustong dami ng stock mo. Ginagamit ito ng Bibilhin list para imungkahi kung magkano ang bibilhin.',
- tipReports:'Ipinapakita kung paano ang takbo ng tindahan mo kamakailan — ano ang nabenta, ano ang hindi, at kabuuan bawat araw.'
+ tipReports:'Ipinapakita kung paano ang takbo ng tindahan mo kamakailan — ano ang nabenta, ano ang hindi, at kabuuan bawat araw.',
+ miscTab:'Miscellaneous',calculator:'Calculator',notes:'Tala',
+ notesHint:'Sulatin ang mabilisang paalala. Awtomatikong na-save dito sa device.',
+ notesPlaceholder:'Mag-type ng tala dito...',calcError:'Error'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

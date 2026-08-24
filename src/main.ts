@@ -7,6 +7,9 @@ import { adjust, applyInventoryChange, chargeCustomer, recordPayment, recordSale
 
 let data: StoreData|null=null; let page='home'; let query=''; let toastTimer:number|undefined; let locked=false;
 let cart:{productId:string,qty:number}[]=[];
+let inventorySub:'products'|'low'|'buy'='products';
+let miscSub:'customers'|'calc'|'notes'='customers';
+let calcExpr='',calcResult='',calcJustEvaluated=false;
 const $=(s:string)=>document.querySelector(s) as HTMLElement;
 function esc(s:string){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!))}
 function money(n:number){return new Intl.NumberFormat(undefined,{style:'currency',currency:data?.store.currency||'PHP'}).format(n)}
@@ -115,7 +118,54 @@ function appearanceModal(){
 
 async function persist(){if(!data)throw new Error('No store loaded.');const old={updatedAt:data.store.updatedAt,snapshotVersion:data.store.snapshotVersion,snapshotId:data.store.snapshotId};data.store.updatedAt=now();data.store.snapshotVersion++;data.store.snapshotId=id();try{await save(data)}catch(e){Object.assign(data.store,old);throw new Error("We couldn't save this change. Your current store data has not been changed. Please try again.")}}
 function initialStore(name:string,language:'en'|'fil'='en'):StoreData{const t=now();return{store:{id:id(),name,currency:'PHP',language,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,createdAt:t,updatedAt:t,snapshotVersion:1,snapshotId:id()},categories:[],products:[],transactions:[],shoppingList:[],sessions:[],customers:[],suppliers:[],creditLedger:[],settings:{theme:'system',accent:'#166534'}}}
-function nav(){const items=[['home',`🏪 ${t(data!,'home')}`],['sales',`🛒 ${t(data!,'sales')}`],['products',`📦 ${t(data!,'products')}`],['low',`⚠️ ${t(data!,'low')}`],['buy',`🛍️ ${t(data!,'buy')}`],['customers',`📒 ${t(data!,'customers')}`],['history',`🕘 ${t(data!,'history')}`],['backup',`💾 ${t(data!,'backup')}`]];return `<nav class="nav">${items.map(([k,l])=>`<button class="${page===k?'active':''}" data-page="${k}">${l}</button>`).join('')}</nav>`}
+function nav(){const items=[['home',`🏪 ${t(data!,'home')}`],['sales',`🛒 ${t(data!,'sales')}`],['products',`📦 ${t(data!,'products')}`],['customers',`🧰 ${t(data!,'miscTab')}`],['history',`🕘 ${t(data!,'history')}`],['backup',`💾 ${t(data!,'backup')}`]];return `<nav class="nav">${items.map(([k,l])=>`<button class="${page===k?'active':''}" data-page="${k}">${l}</button>`).join('')}</nav>`}
+function subtabs(items:[string,string][],active:string,attr:string){return `<div class="subtabs">${items.map(([k,l])=>`<button type="button" class="chip${active===k?' active':''}" data-${attr}="${k}">${l}</button>`).join('')}</div>`}
+function inventoryPage(){const bar=subtabs([['products',t(data!,'products')],['low',t(data!,'low')],['buy',t(data!,'buy')]],inventorySub,'subtab-inv');const body=inventorySub==='products'?products():inventorySub==='low'?low():buy();return bar+body}
+function miscPage(){const bar=subtabs([['customers',t(data!,'customers')],['calc',t(data!,'calculator')],['notes',t(data!,'notes')]],miscSub,'subtab-misc');const body=miscSub==='customers'?customers():miscSub==='calc'?calculatorView():notesView();return bar+body}
+function calcTokens(expr:string){return expr.match(/(\d+\.?\d*|[+\-×÷])/g)||[]}
+function calcEvaluate(expr:string):number{
+  const tokens=calcTokens(expr);
+  if(!tokens.length)return 0;
+  const pass1:string[]=[tokens[0]!];
+  for(let i=1;i<tokens.length;i+=2){
+    const op=tokens[i]!,rhs=tokens[i+1]!;
+    if(op==='×'||op==='÷'){
+      const a=parseFloat(pass1.pop()!),b=parseFloat(rhs);
+      pass1.push(String(op==='×'?a*b:a/b));
+    }else{
+      pass1.push(op,rhs);
+    }
+  }
+  let result=parseFloat(pass1[0]);
+  for(let j=1;j<pass1.length;j+=2){
+    const op=pass1[j],val=parseFloat(pass1[j+1]);
+    result=op==='+'?result+val:result-val;
+  }
+  return result;
+}
+function calculatorView(){return `<section class="section card"><h2>🧮 ${t(data!,'calculator')}</h2><div class="calc-display"><div class="calc-expr">${esc(calcExpr)||'&nbsp;'}</div><div class="calc-result">${esc(calcResult)||'0'}</div></div><div class="calc-grid">${['C','⌫','÷','7','8','9','×','4','5','6','−','1','2','3','+','0','.','='].map(k=>`<button type="button" class="calc-btn${'÷×−+='.includes(k)?' calc-op':''}${k==='C'?' calc-clear':''}" data-calc="${k}">${k}</button>`).join('')}</div></section>`}
+function notesView(){const val=String(data!.settings.notes||'');return `<section class="section card"><h2>📝 ${t(data!,'notes')}</h2><div class="muted" style="margin-bottom:10px">${t(data!,'notesHint')}</div><textarea id="notes-text" class="notes-textarea" placeholder="${t(data!,'notesPlaceholder')}">${esc(val)}</textarea></section>`}
+let notesTimer:number|undefined;
+function handleCalc(key:string){
+  const isOp='+−×÷'.includes(key);
+  if(key==='C'){calcExpr='';calcResult='';calcJustEvaluated=false}
+  else if(key==='⌫'){calcExpr=calcExpr.slice(0,-1);calcJustEvaluated=false}
+  else if(key==='='){
+    try{const r=calcEvaluate(calcExpr);calcResult=Number.isFinite(r)?String(Math.round(r*10000)/10000):t(data!,'calcError')}catch{calcResult=t(data!,'calcError')}
+    calcJustEvaluated=true;
+  }else{
+    if(calcJustEvaluated){
+      calcExpr=isOp?calcResult:'';
+      calcResult='';
+      calcJustEvaluated=false;
+    }
+    if(isOp&&(calcExpr===''||'+−×÷'.includes(calcExpr.slice(-1))))return;
+    calcExpr+=key;
+  }
+  const c=$('#app').querySelector('.calc-expr'),r=$('#app').querySelector('.calc-result');
+  if(c)c.innerHTML=esc(calcExpr)||'&nbsp;';
+  if(r)r.textContent=calcResult||'0';
+}
 function tip(text:string){return `<button type="button" class="tip-btn" data-tip="${esc(text)}" aria-label="${t(data!,'help')}">ⓘ</button>`}
 function closeTip(){document.querySelector('.tip-bubble')?.remove()}
 function showTip(btn:HTMLElement){
@@ -342,8 +392,8 @@ document.querySelectorAll('[data-cart-inc]').forEach(e=>e.addEventListener('clic
 document.querySelectorAll('[data-cart-dec]').forEach(e=>e.addEventListener('click',()=>{const pid=(e as HTMLElement).dataset.cartDec!;const c=cart.find(x=>x.productId===pid);if(!c)return;c.qty--;if(c.qty<=0)cart=cart.filter(x=>x.productId!==pid);render()}));
 document.querySelectorAll('[data-cart-remove]').forEach(e=>e.addEventListener('click',()=>{const pid=(e as HTMLElement).dataset.cartRemove!;cart=cart.filter(x=>x.productId!==pid);render()}));
 $('#clear-cart')?.addEventListener('click',()=>{cart=[];render()});
-$('#checkout')?.addEventListener('click',checkout);$('#export')?.addEventListener('click',exportStore);$('#backup-now')?.addEventListener('click',exportStore);$('#csv-products')?.addEventListener('click',()=>csvExport('products'));$('#csv-sales')?.addEventListener('click',()=>csvExport('sales'));$('#csv-movement')?.addEventListener('click',()=>csvExport('movement'));$('#import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importStore(f)});$('#csv-import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importCsv(f)});document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{page=(x as HTMLElement).dataset.page!;render()}));$('#categories')?.addEventListener('click',categoryManager);$('#suppliers')?.addEventListener('click',supplierManager);$('#session')?.addEventListener('click',sessions);$('#add-customer')?.addEventListener('click',addCustomerModal);document.querySelectorAll('[data-pay]').forEach(e=>e.addEventListener('click',()=>paymentModal((e as HTMLElement).dataset.pay!)));document.querySelectorAll('[data-ledger]').forEach(e=>e.addEventListener('click',()=>ledgerModal((e as HTMLElement).dataset.ledger!)))}
-function render(){if(!data)return;if(locked)return lockScreen();let content=page==='home'?home():page==='sales'?sales():page==='products'?products():page==='low'?low():page==='buy'?buy():page==='customers'?customers():page==='history'?history():page==='reports'?reports():backup();if(page==='home')content+=`<section class="section card"><h2>${t(data,'storeTools')} ${tip(t(data,'tipStoreTools'))}</h2><div class="actions"><button class="secondary" data-page="reports">${t(data,'reports')}</button><button class="secondary" id="categories">${t(data,'categories')}</button><button class="secondary" id="suppliers">${t(data,'suppliers')}</button><button class="secondary" id="session">${data.sessions.some(s=>!s.closedAt)?t(data,'closeStore'):t(data,'openStore')}</button></div></section>`;layout(content);bind()}
+$('#checkout')?.addEventListener('click',checkout);$('#export')?.addEventListener('click',exportStore);$('#backup-now')?.addEventListener('click',exportStore);$('#csv-products')?.addEventListener('click',()=>csvExport('products'));$('#csv-sales')?.addEventListener('click',()=>csvExport('sales'));$('#csv-movement')?.addEventListener('click',()=>csvExport('movement'));$('#import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importStore(f)});$('#csv-import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importCsv(f)});document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{page=(x as HTMLElement).dataset.page!;render()}));$('#categories')?.addEventListener('click',categoryManager);$('#suppliers')?.addEventListener('click',supplierManager);$('#session')?.addEventListener('click',sessions);$('#add-customer')?.addEventListener('click',addCustomerModal);document.querySelectorAll('[data-pay]').forEach(e=>e.addEventListener('click',()=>paymentModal((e as HTMLElement).dataset.pay!)));document.querySelectorAll('[data-ledger]').forEach(e=>e.addEventListener('click',()=>ledgerModal((e as HTMLElement).dataset.ledger!)));document.querySelectorAll('[data-subtab-inv]').forEach(e=>e.addEventListener('click',()=>{inventorySub=(e as HTMLElement).dataset.subtabInv as any;query='';render()}));document.querySelectorAll('[data-subtab-misc]').forEach(e=>e.addEventListener('click',()=>{miscSub=(e as HTMLElement).dataset.subtabMisc as any;render()}));document.querySelectorAll('[data-calc]').forEach(e=>e.addEventListener('click',()=>handleCalc((e as HTMLElement).dataset.calc!)));$('#notes-text')?.addEventListener('input',e=>{data!.settings.notes=(e.target as HTMLTextAreaElement).value;clearTimeout(notesTimer);notesTimer=setTimeout(()=>persist(),600)})}
+function render(){if(!data)return;if(locked)return lockScreen();let content=page==='home'?home():page==='sales'?sales():page==='products'?inventoryPage():page==='customers'?miscPage():page==='history'?history():page==='reports'?reports():backup();if(page==='home')content+=`<section class="section card"><h2>${t(data,'storeTools')} ${tip(t(data,'tipStoreTools'))}</h2><div class="actions"><button class="secondary" data-page="reports">${t(data,'reports')}</button><button class="secondary" id="categories">${t(data,'categories')}</button><button class="secondary" id="suppliers">${t(data,'suppliers')}</button><button class="secondary" id="session">${data.sessions.some(s=>!s.closedAt)?t(data,'closeStore'):t(data,'openStore')}</button></div></section>`;layout(content);bind()}
 async function start(){try{data=await load();if(data){if(!data.settings)data.settings={};if(!data.settings.theme)data.settings.theme='system';if(!data.settings.accent)data.settings.accent='#166534';applyAppearance();locked=Boolean(data.settings.pin)}if(!data){const m=modal('Welcome to Lightweight IMS',`<form class="form"><p>Simple, offline-first inventory for your store.</p><label>Store Name<input name="name" required autofocus placeholder="Maria's Sari-Sari Store"></label><label>Language<select name="lang"><option value="en" selected>English</option><option value="fil">Filipino</option></select></label><button class="primary">START MY STORE</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target as HTMLFormElement);data=initialStore(String(f.get('name')),f.get('lang') as 'en'|'fil');applyAppearance();try{await save(data);m.remove();render()}catch(err){alert((err as Error).message)}});return}render();maybeNotify()}catch(e){$('#app').innerHTML=`<main class="container"><div class="card"><h1>Could not load the store</h1><p>We could not open your local store data. Please keep your .store backup safe.</p><p class="muted">${esc(String(e))}</p></div></main>`}}
 start();
 if('serviceWorker' in navigator){
