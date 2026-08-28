@@ -85,7 +85,12 @@ const en:Record<string,string>={
  createSession:'Create Sync Session',joinSession:'Join with a code',join:'Join',
  syncCodeInvalid:'Enter the 6-digit code shown on the other device.',
  licenseExpired:'This license key has expired.',licenseInvalid:'Invalid license key.',
- licenseActivated:'License activated.',scanSent:'Scan sent',unknownBarcode:'Unknown barcode'
+ licenseActivated:'License activated.',scanSent:'Scan sent',unknownBarcode:'Unknown barcode',
+ addScannerDevice:'Add Scanner Device',
+ scannerInstructions:'On the scanner device, open this site, choose 📷 Scanner, then enter this code.',
+ regenerateCode:'New Code',switchDeviceRole:'Switch device role (IMS / Scanner)',
+ logout:'Logout',
+ logoutConfirm:'Have you already backed up your store data (Backup → Save .store)? Logging out will not delete anything, but if this was an accidental tap, press Cancel.\n\nLog out and choose IMS or Scanner again on this device?'
 };
 const fil:Record<string,string>={
  home:'Aking Tindahan',sales:'Benta',products:'Paninda',low:'Paubos',buy:'Bibilhin',history:'History',backup:'Backup',
@@ -172,7 +177,12 @@ const fil:Record<string,string>={
  createSession:'Gumawa ng Sync Session',joinSession:'Sumali gamit ang code',join:'Sumali',
  syncCodeInvalid:'Ilagay ang 6-digit na code na makikita sa ibang device.',
  licenseExpired:'Nag-expire na ang license key na ito.',licenseInvalid:'Hindi valid na license key.',
- licenseActivated:'Na-activate ang lisensya.',scanSent:'Naipadala ang scan',unknownBarcode:'Hindi kilalang barcode'
+ licenseActivated:'Na-activate ang lisensya.',scanSent:'Naipadala ang scan',unknownBarcode:'Hindi kilalang barcode',
+ addScannerDevice:'Magdagdag ng Scanner Device',
+ scannerInstructions:'Sa scanner device, buksan ang site na ito, piliin ang 📷 Scanner, tapos ilagay ang code na ito.',
+ regenerateCode:'Bagong Code',switchDeviceRole:'Palitan ang device role (IMS / Scanner)',
+ logout:'Logout',
+ logoutConfirm:'Na-backup mo na ba ang datos ng tindahan mo (Backup → Save .store)? Hindi mabubura ang anuman kapag nag-logout ka, pero kung hindi sinasadya ang pindot na ito, i-tap ang Cancel.\n\nMag-logout at pumili ulit ng IMS o Scanner sa device na ito?'
 };
 
 export function t(data:StoreData,key:string){return (data.store.language==='en'?en:fil)[key]??key;}

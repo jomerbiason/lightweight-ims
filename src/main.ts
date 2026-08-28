@@ -5,7 +5,7 @@ import { pack, unpack } from './storefile';
 import { t, locale } from './i18n';
 import { adjust, applyInventoryChange, chargeCustomer, recordPayment, recordSale, recordStockCount, reverseTransaction, stockIn, suggestShopping, todayKey } from './services';
 import { verifyLicenseKey, daysRemaining, type LicenseState } from './license';
-import { generateSyncCode, pushScan, pollScan } from './sync';
+import { generateSyncCode, pushScan, pollScan, pingRoom, checkRoom, pushAck, pollAck, pushControl, pollControl, type SyncAck } from './sync';
 
 let data: StoreData|null=null; let page='home'; let query=''; let toastTimer:number|undefined; let locked=false;
 let cart:{productId:string,qty:number}[]=[];
@@ -223,7 +223,13 @@ function aboutModal(){
     <p class="muted" style="margin-top:16px">Lightweight IMS v1.3.3</p>
   </div>`);
 }
-function layout(content:string){$('#app').innerHTML=`<div class="app"><header class="topbar"><div class="brand-col"><div class="brand">Lightweight IMS <span class="muted">v1.3.3</span></div><div class="muted store-name" title="${esc(data?.store.name||'')}">${esc(data?.store.name||'')}</div></div><div class="actions"><button class="secondary" id="about" aria-label="${t(data!,'help')}">❓<span class="btn-label"> ${t(data!,'help')}</span></button><button class="secondary" id="appearance" aria-label="${t(data!,'settings')}">⚙️<span class="btn-label"> ${t(data!,'settings')}</span></button></div></header><main class="container">${nav()}${content}</main></div>`;document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{const next=(x as HTMLElement).dataset.page!;if(next!==page)query='';page=next;render()}));$('#appearance')?.addEventListener('click',appearanceModal);$('#about')?.addEventListener('click',aboutModal)}
+function layout(content:string){$('#app').innerHTML=`<div class="app"><header class="topbar"><div class="brand-col"><div class="brand">Lightweight IMS <span class="muted">v1.3.3</span></div><div class="muted store-name" title="${esc(data?.store.name||'')}">${esc(data?.store.name||'')}</div></div><div class="actions"><button class="secondary" id="about" aria-label="${t(data!,'help')}">❓<span class="btn-label"> ${t(data!,'help')}</span></button><button class="secondary" id="appearance" aria-label="${t(data!,'settings')}">⚙️<span class="btn-label"> ${t(data!,'settings')}</span></button><button class="secondary" id="device-logout" aria-label="${t(data!,'logout')}">🚪<span class="btn-label"> ${t(data!,'logout')}</span></button></div></header><main class="container">${nav()}${content}</main></div>`;document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{const next=(x as HTMLElement).dataset.page!;if(next!==page)query='';page=next;render()}));$('#appearance')?.addEventListener('click',appearanceModal);$('#about')?.addEventListener('click',aboutModal);$('#device-logout')?.addEventListener('click',logoutDevice)}
+function logoutDevice(){
+  if(!confirm(t(data!,'logoutConfirm')))return;
+  stopSyncPolling();stopScannerMode();
+  clearDeviceRole();
+  location.reload();
+}
 function home(){const ps=data!.products.filter(p=>p.active),low=ps.filter(p=>status(p)==='low').length,out=ps.filter(p=>status(p)==='out').length,buy=data!.shoppingList.filter(x=>!x.purchased).length,sales=unreversedSales(data!.transactions).filter(t=>todayKey(new Date(t.timestamp), data!.store.timezone)===todayKey(new Date(), data!.store.timezone)),est=estimatedProfit(sales,ps);
   const weekAgo=Date.now()-7*86400000;
   const weekSales=unreversedSales(data!.transactions).filter(tx=>new Date(tx.timestamp).getTime()>=weekAgo);
@@ -278,19 +284,22 @@ function reports(){const active=data!.products.filter(p=>p.active),sales=unrever
   const topSellers=[...soldQty.entries()].sort((a,b)=>b[1]-a[1]).slice(0,5).map(([pid,qty])=>({name:data!.products.find(p=>p.id===pid)?.name||'Unknown',qty}));
   return `<section class="section grid"><div class="card"><h2>Current Inventory ${tip(t(data!,'tipReports'))}</h2><div class="stat">${active.length}</div><div class="muted">Active products</div></div><div class="card"><h2>Sales History</h2><div class="stat">${sales.reduce((n,t)=>n+(-t.quantityChange),0)}</div><div class="muted">Items sold</div></div><div class="card"><h2>Stock Movement</h2><div class="stat">${movements}</div><div class="muted">Transactions</div></div><div class="card"><h2>Low Stock</h2><div class="stat">${lowCount}</div></div><div class="card"><h2>Out of Stock</h2><div class="stat">${out}</div></div></section><section class="section card"><h2>${t(data!,'salesTrend')}</h2><div class="table-wrap"><table class="table"><thead><tr><th>${t(data!,'date')}</th><th>${t(data!,'sales')}</th></tr></thead><tbody>${dayTotals.map(d=>`<tr><td>${d.key}</td><td>${money(d.total)}</td></tr>`).join('')}</tbody></table></div></section><section class="section card"><h2>${t(data!,'topSellers30')}</h2>${topSellers.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Product</th><th>Qty sold</th></tr></thead><tbody>${topSellers.map(s=>`<tr><td>${esc(s.name)}</td><td>${s.qty}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty">${t(data!,'noSalesYet')}</div>`}</section>`}
 function backup(){return `<section class="section grid"><div class="card"><h2>💾 ${t(data!,'backupTitle')} ${tip(t(data!,'tipBackup'))}</h2><p>${t(data!,'backupBody')}</p><button class="primary" id="export">${t(data!,'saveStoreFile')}</button></div><div class="card"><h2>${t(data!,'restoreTitle')}</h2><p>${t(data!,'restoreBody')}</p><input id="import-file" type="file" accept=".store,application/json"><p class="muted">${t(data!,'restoreHint')}</p></div><div class="card"><h2>CSV ${tip(t(data!,'tipCsv'))}</h2><p>${t(data!,'csvBody')}</p><button class="secondary" id="csv-products">${t(data!,'products')}</button><button class="secondary" id="csv-sales">${t(data!,'sales')}</button><button class="secondary" id="csv-movement">${t(data!,'inventoryMovements')}</button><hr><label>${t(data!,'importProducts')}<input id="csv-import-file" type="file" accept=".csv,text/csv"></label></div><div class="card"><h2>${t(data!,'settings')}</h2><label><input id="session-toggle" type="checkbox"> ${t(data!,'storeSessions')}</label><p class="muted">${t(data!,'storeSessionsHint')}</p></div></section>`}
-async function openScanOverlay(onDetect:(code:string)=>boolean):Promise<{stop:()=>void}|undefined>{
-  if(!('BarcodeDetector' in window)){alert(t(data!,'scanUnsupported'));return}
+async function openScanOverlay(onDetect:(code:string)=>boolean,labels?:{cancel:string,unsupported:string,cameraError:string}):Promise<{stop:()=>void,closed:Promise<void>}|undefined>{
+  const L=labels??{cancel:t(data!,'cancel'),unsupported:t(data!,'scanUnsupported'),cameraError:t(data!,'scanCameraError')};
+  if(!('BarcodeDetector' in window)){alert(L.unsupported);return}
   let stream:MediaStream;
   try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}
-  catch(e){alert(t(data!,'scanCameraError'));return}
+  catch(e){alert(L.cameraError);return}
   const video=document.createElement('video');video.srcObject=stream;video.setAttribute('playsinline','');video.setAttribute('muted','');await video.play();
   const overlay=document.createElement('div');overlay.className='scan-overlay';
   overlay.append(video);
   const box=document.createElement('div');box.className='scan-box';overlay.append(box);
-  const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.id='scan-cancel';cancel.textContent=t(data!,'cancel');overlay.append(cancel);
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.id='scan-cancel';cancel.textContent=L.cancel;overlay.append(cancel);
   document.body.append(overlay);
   let stopped=false;
-  const stop=()=>{stopped=true;stream.getTracks().forEach(tr=>tr.stop());overlay.remove()};
+  let resolveClosed:()=>void;
+  const closed=new Promise<void>(res=>{resolveClosed=res});
+  const stop=()=>{if(stopped)return;stopped=true;stream.getTracks().forEach(tr=>tr.stop());overlay.remove();resolveClosed()};
   cancel.addEventListener('click',stop);
   const detector=new (window as any).BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128']});
   const tick=async()=>{
@@ -299,13 +308,13 @@ async function openScanOverlay(onDetect:(code:string)=>boolean):Promise<{stop:()
     requestAnimationFrame(tick);
   };
   tick();
-  return {stop};
+  return {stop,closed};
 }
 async function scanBarcode(targetInputId:string){
   await openScanOverlay(code=>{const input=document.querySelector('#'+targetInputId) as HTMLInputElement;if(input)input.value=code;return true});
 }
-let syncScannerHandle:{stop:()=>void}|undefined;
-async function startScannerMode(code:string){
+let syncScannerHandle:{stop:()=>void,closed:Promise<void>}|undefined;
+async function startScannerMode(code:string,sentLabel?:string,overlayLabels?:{cancel:string,unsupported:string,cameraError:string}):Promise<void>{
   if(syncScannerHandle)return;
   let lastSent='',lastSentAt=0;
   const handle=await openScanOverlay(barcode=>{
@@ -313,11 +322,14 @@ async function startScannerMode(code:string){
     if(barcode!==lastSent||nowMs-lastSentAt>2000){
       lastSent=barcode;lastSentAt=nowMs;
       pushScan(code,barcode);
-      toast(`${t(data!,'scanSent')}: ${barcode}`);
+      toast(`${sentLabel??t(data!,'scanSent')}: ${barcode}`);
     }
     return false;
-  });
+  },overlayLabels);
+  if(!handle)return;
   syncScannerHandle=handle;
+  await handle.closed;
+  if(syncScannerHandle===handle)syncScannerHandle=undefined;
 }
 function stopScannerMode(){syncScannerHandle?.stop();syncScannerHandle=undefined}
 let syncPollTimer:number|undefined;
@@ -325,20 +337,56 @@ function startSyncPolling(code:string){
   stopSyncPolling();
   syncPollTimer=window.setInterval(async()=>{
     const barcode=await pollScan(code);
-    if(barcode)handleIncomingScan(barcode);
-  },2500);
+    if(barcode)await handleIncomingScan(barcode,code);
+    const ctrl=await pollControl(code);
+    if(ctrl==='undo')await remoteUndo(code);
+    else if(ctrl==='checkout')await remoteCheckout(code);
+  },1500);
 }
 function stopSyncPolling(){if(syncPollTimer){clearInterval(syncPollTimer);syncPollTimer=undefined}}
-function handleIncomingScan(barcode:string){
+function cartTotal():number{return cart.reduce((s,c)=>{const p=data!.products.find(x=>x.id===c.productId);return s+(p?c.qty*p.sellingPrice:0)},0)}
+async function handleIncomingScan(barcode:string,code?:string){
   if(!data)return;
   const p=data.products.find(x=>x.barcode===barcode&&x.active);
-  if(!p){toast(`${t(data,'unknownBarcode')}: ${barcode}`);return}
-  if(p.stock<=0){toast(`${esc(p.name)}: ${t(data,'outOfStock')}`);return}
+  if(!p){toast(`${t(data,'unknownBarcode')}: ${barcode}`);if(code)await pushAck(code,{ok:false,type:'scanned',barcode,error:'unknown'});return}
   const existing=cart.find(c=>c.productId===p.id);
-  if(existing){if(existing.qty<p.stock)existing.qty++}
+  if((existing?.qty||0)>=p.stock){toast(`${esc(p.name)}: ${t(data,'outOfStock')}`);if(code)await pushAck(code,{ok:false,type:'scanned',barcode,name:p.name,error:'outOfStock'});return}
+  if(existing)existing.qty++;
   else cart.push({productId:p.id,qty:1});
   toast(`${t(data,'add')}: ${p.name}`);
   if(page==='sales')render();
+  if(code)await pushAck(code,{ok:true,type:'scanned',barcode,name:p.name,price:p.sellingPrice,qty:existing?existing.qty:1,cartTotal:cartTotal(),itemCount:cart.length,currency:data.store.currency});
+}
+async function remoteUndo(code:string){
+  if(!data||!cart.length){await pushAck(code,{ok:false,type:'undo',error:'empty'});return}
+  const last=cart[cart.length-1];
+  const p=data.products.find(x=>x.id===last.productId);
+  if(last.qty>1)last.qty--;else cart.pop();
+  if(page==='sales')render();
+  await pushAck(code,{ok:true,type:'undo',removedName:p?.name,cartTotal:cartTotal(),itemCount:cart.length,currency:data.store.currency});
+}
+async function remoteCheckout(code:string){
+  if(!data||!cart.length){await pushAck(code,{ok:false,type:'checkout',error:'empty'});return}
+  const backup=structuredClone(data);
+  try{
+    const saleId=id();
+    const items=cart.map(c=>{const p=data!.products.find(x=>x.id===c.productId)!;return{productId:c.productId,qty:c.qty,price:p.sellingPrice}});
+    for(const it of items)recordSale(data!,it.productId,it.qty,saleId);
+    try{await persist()}catch(e){data=backup;throw e}
+    const receiptItems=items.map(it=>{const p=data!.products.find(x=>x.id===it.productId)!;return{name:p.name,qty:it.qty,price:it.price}});
+    const total=items.reduce((s,it)=>s+it.qty*it.price,0);
+    const ts=now();
+    const receiptText=buildCartReceipt(items,ts);
+    cart=[];
+    toast(t(data!,'saleRecorded'));
+    render();
+    showReceipt(receiptText);
+    await pushAck(code,{ok:true,type:'checkout',receipt:{storeName:data!.store.name,currency:data!.store.currency,items:receiptItems,total,timestamp:ts}});
+  }catch(err){
+    data=backup;
+    alert((err as Error).message);
+    await pushAck(code,{ok:false,type:'checkout',error:(err as Error).message});
+  }
 }
 function licenseState():LicenseState|null{
   const lic=data!.settings.license as LicenseState|undefined;
@@ -350,23 +398,20 @@ function onlineView(){
   const lic=licenseState();
   if(!lic)return `<section class="section card"><h2>🌐 ${t(data!,'onlineMode')} ${tip(t(data!,'tipOnlineMode'))}</h2><div class="muted" style="margin-bottom:12px">${t(data!,'onlineLicenseRequired')}</div><form class="form" id="license-form"><label>${t(data!,'licenseKey')}<input name="key" placeholder="xxxxx.xxxxx" required></label><button class="primary">${t(data!,'activate')}</button></form></section>`;
   const code=String(data!.settings.syncCode||'');
-  const role=String(data!.settings.syncRole||'');
-  return `<section class="section card"><h2>🌐 ${t(data!,'onlineMode')}</h2>
+  return `<section class="section card"><h2>📷 ${t(data!,'addScannerDevice')} ${tip(t(data!,'tipOnlineMode'))}</h2>
     <div class="muted" style="margin-bottom:12px">${t(data!,'licenseActive')}: ${esc(lic.tier)} — ${daysRemaining(lic.expiresAt)} ${t(data!,'daysLeft')}</div>
-    ${code?`<p>${t(data!,'syncCode')}: <strong style="font-size:1.4rem;letter-spacing:.15em">${esc(code)}</strong></p>
+    ${code?`<p>${t(data!,'syncCode')}: <strong style="font-size:1.6rem;letter-spacing:.2em">${esc(code)}</strong></p>
+    <p class="muted" style="margin-bottom:14px">${t(data!,'scannerInstructions')}</p>
     <div class="actions" style="margin-bottom:14px">
-      <button type="button" class="secondary${role==='scanner'?' active':''}" id="role-scanner">📷 ${t(data!,'roleScanner')}</button>
-      <button type="button" class="secondary${role==='display'?' active':''}" id="role-display">🖥️ ${t(data!,'roleDisplay')}</button>
+      <button type="button" class="secondary" id="create-sync">🔄 ${t(data!,'regenerateCode')}</button>
       <button type="button" class="danger" id="leave-sync">${t(data!,'leaveSync')}</button>
     </div>
-    ${role==='scanner'?`<button type="button" class="primary" id="start-scanning">📷 ${t(data!,'startScanning')}</button>`:''}
-    ${role==='display'?`<div class="muted">${t(data!,'listeningForScans')}</div>`:''}`
-    :`<div class="actions"><button type="button" class="primary" id="create-sync">${t(data!,'createSession')}</button></div>
-    <form class="form" id="join-sync-form" style="margin-top:14px"><label>${t(data!,'joinSession')}<input name="code" maxlength="6" pattern="[0-9]{6}" placeholder="123456" required></label><button class="secondary">${t(data!,'join')}</button></form>`}
+    <div class="muted">${t(data!,'listeningForScans')}</div>`
+    :`<div class="actions"><button type="button" class="primary" id="create-sync">➕ ${t(data!,'addScannerDevice')}</button></div>`}
   </section>`;
 }
 function modal(title:string,body:string){const e=document.createElement('div');e.className='modal';e.innerHTML=`<div role="dialog" aria-modal="true"><div class="actions" style="justify-content:space-between"><h2>${title}</h2><button class="secondary" id="close">Close</button></div>${body}</div>`;document.body.append(e);e.querySelector('#close')!.addEventListener('click',()=>e.remove());return e}
-function addProduct(){const m=modal('Add Product',`<form class="form" id="pf"><label>Name<input name="name" required autofocus></label><label>Category<select name="category"><option value="">No category</option>${data!.categories.filter(c=>!c.archived).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><label>Barcode (optional)<div class="actions"><input name="barcode" id="add-barcode"><button type="button" class="secondary" id="scan-add-barcode">📷 ${t(data!,'scan')}</button></div></label><label>Selling Price<input name="price" type="number" min="0" step="0.01" required></label><label>Cost Price<input name="cost" type="number" min="0" step="0.01"></label><label>Initial Stock<input name="stock" type="number" min="0" step="1" value="0" required></label><label>${t(data!,'reorderLevel')} ${tip(t(data!,'tipReorderLevel'))}<input name="reorder" type="number" min="0" step="1" value="5"></label><label>${t(data!,'targetStock')} ${tip(t(data!,'tipTargetStock'))}<input name="target" type="number" min="0" step="1" value="20"></label><label>Unit<input name="unit" value="pcs"></label><label>Expiration (optional)<input name="expiration" type="date"></label><button class="primary">Save Product</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();try{const f=new FormData(e.target as HTMLFormElement);const p:Product={id:id(),name:String(f.get('name')).trim(),categoryId:String(f.get('category')||'')||undefined,barcode:String(f.get('barcode')||'')||undefined,sellingPrice:Number(f.get('price')),costPrice:String(f.get('cost')||'')===''?undefined:Number(f.get('cost')),stock:Number(f.get('stock')),reorderLevel:Number(f.get('reorder')),targetStock:Number(f.get('target')),unit:String(f.get('unit')||'pcs'),active:true,expirationDate:String(f.get('expiration')||'')||undefined,createdAt:now(),updatedAt:now()};if(!p.name||!Number.isFinite(p.sellingPrice)||p.sellingPrice<0||!Number.isInteger(p.stock)||p.stock<0)throw new Error('Check the product values.');data!.products.push(p);if(p.stock)applyInventoryChange(data!,p.id,p.stock,'INITIAL_STOCK','Initial stock');await persist();m.remove();toast('Product added.');render()}catch(err){alert((err as Error).message)}});m.querySelector('#scan-add-barcode')?.addEventListener('click',()=>scanBarcode('add-barcode'))}
+function addProduct(){const m=modal('Add Product',`<form class="form" id="pf"><label>Name<input name="name" required autofocus></label><label>Category<select name="category"><option value="">No category</option>${data!.categories.filter(c=>!c.archived).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label><label>Barcode (optional)<div class="actions"><input name="barcode" id="add-barcode"><button type="button" class="secondary" id="scan-add-barcode">📷 ${t(data!,'scan')}</button></div></label><label>Selling Price<input name="price" type="number" min="0" step="0.01" required></label><label>Cost Price<input name="cost" type="number" min="0" step="0.01"></label><label>Initial Stock<input name="stock" type="number" min="0" step="1" value="0" required></label><label>${t(data!,'reorderLevel')} ${tip(t(data!,'tipReorderLevel'))}<input name="reorder" type="number" min="0" step="1" value="5"></label><label>${t(data!,'targetStock')} ${tip(t(data!,'tipTargetStock'))}<input name="target" type="number" min="0" step="1" value="20"></label><label>Unit<input name="unit" value="pcs"></label><label>Expiration (optional)<input name="expiration" type="date"></label><button class="primary">Save Product</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();try{const f=new FormData(e.target as HTMLFormElement);const initialStock=Number(f.get('stock'));const p:Product={id:id(),name:String(f.get('name')).trim(),categoryId:String(f.get('category')||'')||undefined,barcode:String(f.get('barcode')||'')||undefined,sellingPrice:Number(f.get('price')),costPrice:String(f.get('cost')||'')===''?undefined:Number(f.get('cost')),stock:0,reorderLevel:Number(f.get('reorder')),targetStock:Number(f.get('target')),unit:String(f.get('unit')||'pcs'),active:true,expirationDate:String(f.get('expiration')||'')||undefined,createdAt:now(),updatedAt:now()};if(!p.name||!Number.isFinite(p.sellingPrice)||p.sellingPrice<0||!Number.isInteger(initialStock)||initialStock<0)throw new Error('Check the product values.');data!.products.push(p);if(initialStock)applyInventoryChange(data!,p.id,initialStock,'INITIAL_STOCK','Initial stock');await persist();m.remove();toast('Product added.');render()}catch(err){alert((err as Error).message)}});m.querySelector('#scan-add-barcode')?.addEventListener('click',()=>scanBarcode('add-barcode'))}
 function editProduct(pid:string){const p=data!.products.find(x=>x.id===pid)!;const m=modal('Edit Product',`<form class="form" id="ef"><label>Name<input name="name" value="${esc(p.name)}" required></label><label>Selling Price<input name="price" type="number" min="0" step="0.01" value="${p.sellingPrice}" required></label><label>Cost Price<input name="cost" type="number" min="0" step="0.01" value="${p.costPrice??''}"></label><label>${t(data!,'reorderLevel')} ${tip(t(data!,'tipReorderLevel'))}<input name="reorder" type="number" min="0" value="${p.reorderLevel}"></label><label>${t(data!,'targetStock')} ${tip(t(data!,'tipTargetStock'))}<input name="target" type="number" min="0" value="${p.targetStock}"></label><label>Unit<input name="unit" value="${esc(p.unit)}"></label><label>Barcode<div class="actions"><input name="barcode" id="edit-barcode" value="${esc(p.barcode||'')}"><button type="button" class="secondary" id="scan-edit-barcode">📷 ${t(data!,'scan')}</button></div></label><label>Expiration<input name="expiration" type="date" value="${esc(p.expirationDate||'')}"></label><button class="primary">Save Changes</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();try{const f=new FormData(e.target as HTMLFormElement);p.name=String(f.get('name')).trim();p.sellingPrice=Number(f.get('price'));p.costPrice=String(f.get('cost')||'')===''?undefined:Number(f.get('cost'));p.reorderLevel=Number(f.get('reorder'));p.targetStock=Number(f.get('target'));p.unit=String(f.get('unit')||'pcs');p.barcode=String(f.get('barcode')||'')||undefined;p.expirationDate=String(f.get('expiration')||'')||undefined;p.updatedAt=now();if(!p.name||p.sellingPrice<0||p.reorderLevel<0||p.targetStock<0)throw new Error('Check the product values.');await persist();m.remove();toast('Product updated.');render()}catch(err){alert((err as Error).message)}});m.querySelector('#scan-edit-barcode')?.addEventListener('click',()=>scanBarcode('edit-barcode'))}
 function buildReceipt(p:Product,qty:number,tx:InventoryTransaction){
   const price=tx.salePrice??p.sellingPrice;const total=qty*price;
@@ -431,12 +476,21 @@ function ledgerModal(cid:string){const c=data!.customers.find(x=>x.id===cid)!;co
 async function restoreProduct(pid:string){const p=data!.products.find(x=>x.id===pid)!;p.active=true;p.updatedAt=now();await persist();toast('Product restored.');render()}
 async function archive(pid:string){const p=data!.products.find(x=>x.id===pid)!;if(!confirm(`Archive ${p.name}?`))return;p.active=false;p.updatedAt=now();await persist();toast('Product archived.');render()}
 async function autoBuy(){for(const s of suggestShopping(data!)){const existing=data!.shoppingList.find(x=>x.productId===s.productId&&!x.purchased);if(existing)existing.quantity=s.quantity;else data!.shoppingList.push({id:id(),productId:s.productId,name:s.name,quantity:s.quantity,purchased:false,createdAt:now()})}await persist();toast(t(data!,'buyListUpdated'));render()}
-function download(name:string,text:string,type='text/plain'){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function download(name:string,text:string,type='text/plain'){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.style.display='none';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function safeCsv(s:string){return /^[=+\-@]/.test(s)?`'${s}`:s}
 function csvExport(kind:'products'|'sales'|'movement'){let rows:string[][]=[];if(kind==='products'){rows=[['Product','Category','SKU','Barcode','Price','Cost','Stock','Reorder Level','Target Stock','Unit','Expiration']];for(const p of data!.products)rows.push([p.name,data!.categories.find(c=>c.id===p.categoryId)?.name||'',p.sku||'',p.barcode||'',String(p.sellingPrice),String(p.costPrice??''),String(p.stock),String(p.reorderLevel),String(p.targetStock),p.unit,p.expirationDate||''])}else if(kind==='sales'){rows=[['Timestamp','Product','Quantity','Price','Estimated Sales']];for(const t of data!.transactions.filter(t=>t.type==='SALE')){const p=data!.products.find(p=>p.id===t.productId);const price=t.salePrice??p?.sellingPrice??0;rows.push([t.timestamp,p?.name||'',String(-t.quantityChange),String(price),String((-t.quantityChange)*price)])}}else{rows=[['Timestamp','Product','Type','Change','Previous','New','Reason','Reference']];for(const t of data!.transactions)rows.push([t.timestamp,data!.products.find(p=>p.id===t.productId)?.name||'',t.type,String(t.quantityChange),String(t.previousQuantity),String(t.newQuantity),t.reason||'',t.referenceId||''])}const out=rows.map(r=>r.map(x=>`"${safeCsv(x).replace(/"/g,'""')}"`).join(',')).join('\n');download(`${kind}.csv`,out,'text/csv;charset=utf-8')}
 function parseCsv(text:string):string[][]{const rows:string[][]=[];let row:string[]=[],cur='',quote=false;for(let i=0;i<text.length;i++){const ch=text[i];if(ch==='"'){if(quote&&text[i+1]==='"'){cur+='"';i++;}else quote=!quote;continue;}if(ch===','&&!quote){row.push(cur);cur='';continue;}if((ch==='\n'||ch==='\r')&&!quote){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cur);if(row.some(x=>x!==''))rows.push(row);row=[];cur='';continue;}cur+=ch;}if(quote)throw new Error('CSV has an unterminated quoted value.');row.push(cur);if(row.some(x=>x!==''))rows.push(row);return rows}
 async function importCsv(file:File){try{const text=await file.text();const records=parseCsv(text);if(records.length<2)throw new Error('CSV is empty.');const h=records[0].map(x=>x.trim().toLowerCase());const pi=h.indexOf('product'),pr=h.indexOf('price'),si=h.indexOf('stock');if(pi<0||pr<0||si<0)throw new Error('CSV needs Product, Price, and Stock columns.');const rows:any[]=[];for(let i=1;i<records.length;i++){const c=records[i];const name=c[pi]?.trim(),price=Number(c[pr]),stock=Number(c[si]);if(!name||!Number.isFinite(price)||price<0||!Number.isInteger(stock)||stock<0)throw new Error(`CSV error on row ${i+1}. No rows were imported.`);rows.push({name,price,stock})}if(!confirm(`Preview: ${rows.length} products will be added. Continue?`))return;const backup=structuredClone(data);for(const r of rows){const p:Product={id:id(),name:r.name,sellingPrice:r.price,stock:0,reorderLevel:5,targetStock:20,unit:'pcs',active:true,createdAt:now(),updatedAt:now()};data!.products.push(p);if(r.stock)applyInventoryChange(data!,p.id,r.stock,'INITIAL_STOCK','CSV import')}try{await persist()}catch(e){data=backup;throw e}toast('CSV imported.');render()}catch(e){alert((e as Error).message)}}
-async function exportStore(){download(`${data!.store.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()||'my-store'}.store`,pack(data!),'application/json');data!.settings.lastBackupAt=now();await persist();render()}
+async function exportStore(){
+  let fileText:string;
+  try{fileText=pack(data!)}
+  catch(e){alert(`We could not prepare your backup file. Nothing was downloaded.\n${esc(String((e as Error).message||e))}`);return}
+  try{download(`${data!.store.name.replace(/[^a-z0-9]+/gi,'-').toLowerCase()||'my-store'}.store`,fileText,'application/json')}
+  catch(e){alert(`The download could not start. Please try again.\n${esc(String((e as Error).message||e))}`);return}
+  try{data!.settings.lastBackupAt=now();await persist()}
+  catch(e){toast('Backup downloaded, but the backup date could not be saved.');console.error(e)}
+  render();
+}
 async function importStore(file:File){try{const incoming=unpack(await file.text());const current=data;const older=current&&incoming.store.id===current.store.id&&incoming.store.snapshotVersion<current.store.snapshotVersion;if(older&&!confirm('This store file is older than the store currently on this device. Restore anyway?'))return;if(!confirm(`Restore "${incoming.store.name}"? Current data will be replaced after a safety snapshot.`))return;if(current)await safetySnapshot(current);data=incoming;try{await persist()}catch(e){data=current;throw e}toast('Store restored.');render()}catch(e){alert((e as Error).message)}}
 async function sessions(){
   const open=data!.sessions.find(s=>!s.closedAt);
@@ -468,16 +522,192 @@ document.querySelectorAll('[data-cart-remove]').forEach(e=>e.addEventListener('c
 $('#clear-cart')?.addEventListener('click',()=>{cart=[];render()});
 $('#checkout')?.addEventListener('click',checkout);$('#export')?.addEventListener('click',exportStore);$('#backup-now')?.addEventListener('click',exportStore);$('#csv-products')?.addEventListener('click',()=>csvExport('products'));$('#csv-sales')?.addEventListener('click',()=>csvExport('sales'));$('#csv-movement')?.addEventListener('click',()=>csvExport('movement'));$('#import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importStore(f)});$('#csv-import-file')?.addEventListener('change',e=>{const f=(e.target as HTMLInputElement).files?.[0];if(f)importCsv(f)});document.querySelectorAll('[data-page]').forEach(x=>x.addEventListener('click',()=>{const next=(x as HTMLElement).dataset.page!;if(next!==page)query='';page=next;render()}));$('#categories')?.addEventListener('click',categoryManager);$('#suppliers')?.addEventListener('click',supplierManager);$('#session')?.addEventListener('click',sessions);$('#add-customer')?.addEventListener('click',addCustomerModal);document.querySelectorAll('[data-pay]').forEach(e=>e.addEventListener('click',()=>paymentModal((e as HTMLElement).dataset.pay!)));document.querySelectorAll('[data-ledger]').forEach(e=>e.addEventListener('click',()=>ledgerModal((e as HTMLElement).dataset.ledger!)));document.querySelectorAll('[data-subtab-inv]').forEach(e=>e.addEventListener('click',()=>{inventorySub=(e as HTMLElement).dataset.subtabInv as any;query='';render()}));document.querySelectorAll('[data-subtab-misc]').forEach(e=>e.addEventListener('click',()=>{miscSub=(e as HTMLElement).dataset.subtabMisc as any;render()}));document.querySelectorAll('[data-calc]').forEach(e=>e.addEventListener('click',()=>handleCalc((e as HTMLElement).dataset.calc!)));$('#notes-text')?.addEventListener('input',e=>{data!.settings.notes=(e.target as HTMLTextAreaElement).value;clearTimeout(notesTimer);notesTimer=setTimeout(()=>persist(),600)});
 $('#license-form')?.addEventListener('submit',async e=>{e.preventDefault();const key=String(new FormData(e.target as HTMLFormElement).get('key')||'').trim();const r=await verifyLicenseKey(key);if(!r.valid){alert(r.expired?t(data!,'licenseExpired'):(r.error||t(data!,'licenseInvalid')));return}data!.settings.license={key,tier:r.payload!.tier,expiresAt:r.payload!.expiresAt};await persist();toast(t(data!,'licenseActivated'));render()});
-$('#create-sync')?.addEventListener('click',async()=>{data!.settings.syncCode=generateSyncCode();data!.settings.syncRole='';await persist();render()});
-$('#join-sync-form')?.addEventListener('submit',async e=>{e.preventDefault();const code=String(new FormData(e.target as HTMLFormElement).get('code')||'').trim();if(!/^\d{6}$/.test(code))return alert(t(data!,'syncCodeInvalid'));data!.settings.syncCode=code;data!.settings.syncRole='';await persist();render()});
+$('#create-sync')?.addEventListener('click',async()=>{const code=generateSyncCode();data!.settings.syncCode=code;data!.settings.syncRole='display';await persist();await pingRoom(code);startSyncPolling(code);render()});
 $('#leave-sync')?.addEventListener('click',async()=>{stopSyncPolling();stopScannerMode();delete data!.settings.syncCode;delete data!.settings.syncRole;await persist();render()});
-$('#role-scanner')?.addEventListener('click',async()=>{stopSyncPolling();data!.settings.syncRole='scanner';await persist();render()});
-$('#role-display')?.addEventListener('click',async()=>{stopScannerMode();data!.settings.syncRole='display';await persist();const code=String(data!.settings.syncCode||'');if(code)startSyncPolling(code);render()});
-$('#start-scanning')?.addEventListener('click',()=>{const code=String(data!.settings.syncCode||'');if(code)startScannerMode(code)});
 }
 function render(){if(!data)return;if(locked)return lockScreen();let content=page==='home'?home():page==='sales'?sales():page==='products'?inventoryPage():page==='customers'?miscPage():page==='history'?history():page==='reports'?reports():backup();if(page==='home')content+=`<section class="section card"><h2>${t(data,'storeTools')} ${tip(t(data,'tipStoreTools'))}</h2><div class="actions"><button class="secondary" data-page="reports">${t(data,'reports')}</button><button class="secondary" id="categories">${t(data,'categories')}</button><button class="secondary" id="suppliers">${t(data,'suppliers')}</button><button class="secondary" id="session">${data.sessions.some(s=>!s.closedAt)?t(data,'closeStore'):t(data,'openStore')}</button></div></section>`;layout(content);bind()}
+type DeviceRole='ims'|'scanner';
+function getDeviceRole():DeviceRole|null{try{const r=localStorage.getItem('imsDeviceRole');return r==='ims'||r==='scanner'?r:null}catch{return null}}
+function setDeviceRole(r:DeviceRole){try{localStorage.setItem('imsDeviceRole',r)}catch{}}
+function clearDeviceRole(){try{localStorage.removeItem('imsDeviceRole')}catch{}}
+function roleChooserView(){
+  $('#app').innerHTML=`<div class="lock-screen"><div class="lock-card" style="max-width:440px">
+    <h1>📦 Lightweight IMS</h1>
+    <p class="muted">Choose what this device will be used for.<br>Piliin ang gagamitin ng device na ito.</p>
+    <div class="role-grid">
+      <button type="button" class="primary role-btn" id="role-ims"><span class="role-icon">🖥️</span><span>IMS</span><span class="muted role-hint">Main inventory app<br>Pangunahing app</span></button>
+      <button type="button" class="secondary role-btn" id="role-scanner-choice"><span class="role-icon">📷</span><span>Scanner</span><span class="muted role-hint">Barcode scanner only<br>Panukat lang</span></button>
+    </div>
+  </div></div>`;
+  $('#role-ims')!.addEventListener('click',()=>{setDeviceRole('ims');start()});
+  $('#role-scanner-choice')!.addEventListener('click',()=>{setDeviceRole('scanner');scannerRoleView()});
+}
+let scannerPairedCode='';
+const SCANNER_OVERLAY_LABELS={cancel:'Done Scanning / Tapos na',unsupported:'Barcode scanning is not supported on this device or browser.',cameraError:'Could not access the camera.'};
+function scannerLogoutHandler(e:Event){
+  e.preventDefault();
+  if(!confirm('Log out and choose a different device role?\n\nMag-logout at pumili ulit ng device role?\n\nThis device holds no store data, so nothing here will be lost. Any items already scanned but not yet punched will stay on the IMS device until you finish or cancel there.'))return;
+  stopScannerAckPolling();stopScannerMode();clearDeviceRole();location.reload();
+}
+function scannerRoleView(error?:string){
+  stopScannerAckPolling();
+  $('#app').innerHTML=`<div class="lock-screen"><div class="lock-card" style="max-width:420px">
+    <h1>📷 Scanner Mode</h1>
+    <p class="muted">Enter the 6-digit pairing code shown on the IMS device, or your License Key.<br>Ilagay ang 6-digit pairing code mula sa IMS device, o ang License Key mo.</p>
+    <form class="form" id="pair-form" style="margin-top:16px">
+      <input name="value" placeholder="123456 or xxxxx.xxxxx" required autofocus>
+      <button class="primary">Pair / I-pares</button>
+    </form>
+    ${error?`<p class="danger-text" style="margin-top:10px">${esc(error)}</p>`:''}
+    <button type="button" class="secondary" id="view-history" style="width:100%;margin-top:14px">🕘 Transaction History</button>
+    <p class="muted" style="margin-top:18px"><a href="#" id="scanner-logout">🚪 Logout / Palitan ang role</a></p>
+  </div></div>`;
+  $('#view-history')!.addEventListener('click',()=>scannerHistoryView());
+  $('#pair-form')!.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const raw=String(new FormData(e.target as HTMLFormElement).get('value')||'').trim();
+    if(/^\d{6}$/.test(raw)){
+      const ok=await checkRoom(raw);
+      if(ok){scannerPairedCode=raw;scannerItems=[];scannerFeedback='';startScannerAckPolling();renderScannerSession()}
+      else scannerRoleView('No IMS device found with that pairing code. / Walang nahanap na IMS device gamit ang code na ito.');
+    }else if(raw.includes('.')){
+      const r=await verifyLicenseKey(raw);
+      if(!r.valid){scannerRoleView(r.expired?'This license key has expired.':'Invalid license key.');return}
+      const code=(prompt('License verified. Now enter the 6-digit pairing code shown on the IMS device:')||'').trim();
+      if(!/^\d{6}$/.test(code)){scannerRoleView('Enter the 6-digit pairing code shown on the IMS device.');return}
+      const ok=await checkRoom(code);
+      if(ok){scannerPairedCode=code;scannerItems=[];scannerFeedback='';startScannerAckPolling();renderScannerSession()}
+      else scannerRoleView('No IMS device found with that pairing code. / Walang nahanap na IMS device gamit ang code na ito.');
+    }else{
+      scannerRoleView('Enter a valid 6-digit pairing code or a license key.');
+    }
+  });
+  $('#scanner-logout')!.addEventListener('click',scannerLogoutHandler);
+}
+let scannerItems:{name:string,qty:number,price:number}[]=[];
+let scannerFeedback='';
+let scannerCurrency='PHP';
+let scannerAckPollTimer:number|undefined;
+function scannerFmtMoney(n:number){try{return new Intl.NumberFormat(undefined,{style:'currency',currency:scannerCurrency}).format(n)}catch{return `${scannerCurrency} ${n.toFixed(2)}`}}
+function scannerTotal(){return scannerItems.reduce((s,i)=>s+i.qty*i.price,0)}
+function scannerUpsertItem(name:string,qty:number,price:number){const ex=scannerItems.find(i=>i.name===name);if(ex){ex.qty=qty;ex.price=price}else scannerItems.push({name,qty,price})}
+function scannerRemoveByName(name?:string){if(!name)return;const idx=scannerItems.findIndex(i=>i.name===name);if(idx<0)return;if(scannerItems[idx].qty>1)scannerItems[idx].qty--;else scannerItems.splice(idx,1)}
+function stopScannerAckPolling(){if(scannerAckPollTimer){clearInterval(scannerAckPollTimer);scannerAckPollTimer=undefined}}
+function startScannerAckPolling(){
+  stopScannerAckPolling();
+  scannerAckPollTimer=window.setInterval(async()=>{
+    const ack=await pollAck(scannerPairedCode);
+    if(!ack)return;
+    if(ack.currency)scannerCurrency=ack.currency;
+    if(ack.type==='scanned'){
+      if(ack.ok&&ack.name!==undefined&&ack.price!==undefined&&ack.qty!==undefined){
+        scannerUpsertItem(ack.name,ack.qty,ack.price);
+        scannerFeedback=`✅ ${ack.name} — ${scannerFmtMoney(ack.price)}`;
+        toast(`✅ ${ack.name}`);
+      }else{
+        scannerFeedback=ack.error==='outOfStock'?`⚠️ ${ack.name||ack.barcode}: out of stock / kulang ang stock`:`❌ Unknown barcode: ${ack.barcode}`;
+        toast(scannerFeedback);
+      }
+      renderScannerSession();
+    }else if(ack.type==='undo'){
+      scannerRemoveByName(ack.removedName);
+      scannerFeedback=ack.ok?`↩ Removed: ${ack.removedName}`:'Nothing to undo. / Walang ma-a-undo.';
+      renderScannerSession();
+    }else if(ack.type==='checkout'){
+      if(ack.ok&&ack.receipt)scannerShowReceipt(ack.receipt);
+      else{alert(`Checkout failed / Nabigo ang checkout: ${ack.error||'unknown error'}`);renderScannerSession()}
+    }
+  },1200);
+}
+function renderScannerSession(){
+  const rows=scannerItems.map(i=>`<div class="listrow"><span>${esc(i.name)} × ${i.qty}</span><span>${scannerFmtMoney(i.qty*i.price)}</span></div>`).join('')
+    ||`<div class="empty">No items scanned yet. / Wala pang na-scan.</div>`;
+  $('#app').innerHTML=`<div class="lock-screen"><div class="lock-card" style="max-width:460px;text-align:left">
+    <h1 style="text-align:center">📷 Scanning</h1>
+    <p class="muted" style="text-align:center">Code: <strong style="letter-spacing:.2em">${esc(scannerPairedCode)}</strong></p>
+    ${scannerFeedback?`<p class="muted" style="text-align:center;margin:8px 0 0">${esc(scannerFeedback)}</p>`:''}
+    <div style="margin:14px 0">${rows}</div>
+    <p style="text-align:right;font-weight:700">Total: ${scannerFmtMoney(scannerTotal())}</p>
+    <button type="button" class="primary" id="scan-item" style="width:100%;margin-top:6px">📷 Scan Item / Mag-scan</button>
+    <div class="actions" style="margin-top:8px">
+      <button type="button" class="secondary" id="undo-item" style="flex:1"${scannerItems.length?'':' disabled'}>↩ Undo</button>
+      <button type="button" class="primary" id="punch-btn" style="flex:1"${scannerItems.length?'':' disabled'}>✅ Punch</button>
+    </div>
+    <button type="button" class="secondary" id="view-history" style="width:100%;margin-top:8px">🕘 Transaction History</button>
+    <p class="muted" style="margin-top:18px;text-align:center"><a href="#" id="scanner-logout">🚪 Logout / Palitan ang role</a></p>
+  </div></div>`;
+  $('#scan-item')!.addEventListener('click',async()=>{await startScannerMode(scannerPairedCode,'Sent',SCANNER_OVERLAY_LABELS);renderScannerSession()});
+  $('#undo-item')!.addEventListener('click',async()=>{scannerFeedback='Undoing... / Ina-undo...';renderScannerSession();await pushControl(scannerPairedCode,'undo')});
+  $('#punch-btn')!.addEventListener('click',async()=>{if(!scannerItems.length)return;scannerFeedback='Finalizing sale... / Kinukumpleto ang benta...';renderScannerSession();await pushControl(scannerPairedCode,'checkout')});
+  $('#view-history')!.addEventListener('click',()=>scannerHistoryView());
+  $('#scanner-logout')!.addEventListener('click',scannerLogoutHandler);
+}
+const SCANNER_HISTORY_KEY='imsScannerHistory';
+function scannerLoadHistory():NonNullable<SyncAck['receipt']>[]{try{const raw=localStorage.getItem(SCANNER_HISTORY_KEY);const arr=raw?JSON.parse(raw):[];return Array.isArray(arr)?arr:[]}catch{return[]}}
+function scannerSaveToHistory(receipt:NonNullable<SyncAck['receipt']>){try{const hist=scannerLoadHistory();hist.unshift(receipt);localStorage.setItem(SCANNER_HISTORY_KEY,JSON.stringify(hist.slice(0,50)))}catch{}}
+function scannerFmtMoneyC(n:number,currency:string){try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(n)}catch{return `${currency} ${n.toFixed(2)}`}}
+function scannerReceiptLines(receipt:NonNullable<SyncAck['receipt']>):string{
+  return [
+    receipt.storeName,
+    new Date(receipt.timestamp).toLocaleString(),
+    '------------------------------',
+    ...receipt.items.map(it=>`${it.name}\n${it.qty} x ${scannerFmtMoneyC(it.price,receipt.currency)} = ${scannerFmtMoneyC(it.qty*it.price,receipt.currency)}`),
+    '------------------------------',
+    `Total: ${scannerFmtMoneyC(receipt.total,receipt.currency)}`,
+    '',
+    'Thank you for your purchase! / Salamat sa inyong pagbili!'
+  ].join('\n');
+}
+function scannerShowReceipt(receipt:NonNullable<SyncAck['receipt']>,opts?:{fromHistory?:boolean}){
+  stopScannerAckPolling();
+  if(!opts?.fromHistory){scannerItems=[];scannerSaveToHistory(receipt)}
+  const lines=scannerReceiptLines(receipt);
+  const canShare=typeof navigator.share==='function';
+  $('#app').innerHTML=`<div class="lock-screen"><div class="lock-card" style="max-width:420px">
+    <h1>🧾 Receipt</h1>
+    <pre class="receipt">${esc(lines)}</pre>
+    <div class="actions" style="margin-top:14px">
+      ${canShare?`<button class="primary" id="share-receipt" style="flex:1">📤 Share</button>`:''}
+      <button class="secondary" id="print-receipt" style="flex:1">🖨️ Print</button>
+      <button class="secondary" id="copy-receipt" style="flex:1">📋 Copy</button>
+    </div>
+    ${opts?.fromHistory
+      ?`<button type="button" class="secondary" id="back-history" style="margin-top:14px;width:100%">← Back to History</button>`
+      :`<button type="button" class="primary" id="scan-next" style="margin-top:14px;width:100%">🛒 Scan Next Customer / Susunod na Customer</button>
+        <button type="button" class="secondary" id="view-history" style="margin-top:8px;width:100%">🕘 Transaction History</button>`}
+    <p class="muted" style="margin-top:18px;text-align:center"><a href="#" id="scanner-logout">🚪 Logout / Palitan ang role</a></p>
+  </div></div>`;
+  $('#share-receipt')?.addEventListener('click',async()=>{try{await navigator.share({text:lines,title:'Receipt'})}catch{}});
+  $('#print-receipt')!.addEventListener('click',()=>window.print());
+  $('#copy-receipt')!.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(lines);toast('Copied to clipboard.')}catch{alert(lines)}});
+  $('#scan-next')?.addEventListener('click',()=>{scannerFeedback='';startScannerAckPolling();renderScannerSession()});
+  $('#view-history')?.addEventListener('click',()=>scannerHistoryView());
+  $('#back-history')?.addEventListener('click',()=>scannerHistoryView());
+  $('#scanner-logout')!.addEventListener('click',scannerLogoutHandler);
+}
+function scannerHistoryView(){
+  stopScannerAckPolling();
+  const hist=scannerLoadHistory();
+  const rows=hist.map((r,i)=>`<button type="button" class="secondary" data-hist="${i}" style="width:100%;text-align:left;margin-bottom:8px;display:flex;justify-content:space-between;gap:10px"><span>${esc(new Date(r.timestamp).toLocaleString())}</span><span>${scannerFmtMoneyC(r.total,r.currency)}</span></button>`).join('')
+    ||`<div class="empty">No past receipts yet. / Wala pang naunang resibo.</div>`;
+  $('#app').innerHTML=`<div class="lock-screen"><div class="lock-card" style="max-width:460px;text-align:left">
+    <h1 style="text-align:center">🕘 Transaction History</h1>
+    <div style="margin:16px 0;max-height:52vh;overflow:auto">${rows}</div>
+    <button type="button" class="secondary" id="hist-back" style="width:100%">← Back</button>
+    <p class="muted" style="margin-top:18px;text-align:center"><a href="#" id="scanner-logout">🚪 Logout / Palitan ang role</a></p>
+  </div></div>`;
+  document.querySelectorAll('[data-hist]').forEach(b=>b.addEventListener('click',()=>{
+    const idx=Number((b as HTMLElement).dataset.hist);
+    if(hist[idx])scannerShowReceipt(hist[idx],{fromHistory:true});
+  }));
+  $('#hist-back')!.addEventListener('click',()=>{if(scannerPairedCode){startScannerAckPolling();renderScannerSession()}else scannerRoleView()});
+  $('#scanner-logout')!.addEventListener('click',scannerLogoutHandler);
+}
 async function start(){try{data=await load();if(data){if(!data.settings)data.settings={};if(!data.settings.theme)data.settings.theme='system';if(!data.settings.accent)data.settings.accent='#166534';applyAppearance();locked=Boolean(data.settings.pin);if(!locked&&licenseState()&&data.settings.syncRole==='display'&&data.settings.syncCode)startSyncPolling(String(data.settings.syncCode))}if(!data){const m=modal('Welcome to Lightweight IMS',`<form class="form"><p>Simple, offline-first inventory for your store.</p><label>Store Name<input name="name" required autofocus placeholder="Maria's Sari-Sari Store"></label><label>Language<select name="lang"><option value="en" selected>English</option><option value="fil">Filipino</option></select></label><button class="primary">START MY STORE</button></form>`);m.querySelector('form')!.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target as HTMLFormElement);data=initialStore(String(f.get('name')),f.get('lang') as 'en'|'fil');applyAppearance();try{await save(data);m.remove();render()}catch(err){alert((err as Error).message)}});return}render();maybeNotify()}catch(e){$('#app').innerHTML=`<main class="container"><div class="card"><h1>Could not load the store</h1><p>We could not open your local store data. Please keep your .store backup safe.</p><p class="muted">${esc(String(e))}</p></div></main>`}}
-start();
+const initialRole=getDeviceRole();
+if(initialRole==='scanner')scannerRoleView();
+else if(initialRole==='ims')start();
+else roleChooserView();
 if('serviceWorker' in navigator){
   let refreshing=false;
   navigator.serviceWorker.addEventListener('controllerchange',()=>{if(refreshing)return;refreshing=true;location.reload()});

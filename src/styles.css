@@ -92,7 +92,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .badge.normal{background:var(--accent-soft)}
 .empty{padding:36px 20px;text-align:center;color:var(--muted);font-size:.92rem}
 .toast{position:fixed;right:18px;bottom:18px;background:var(--text);color:var(--bg);padding:13px 18px;
-  border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);z-index:30;font-weight:600;font-size:.9rem;
+  border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);z-index:50;font-weight:600;font-size:.9rem;
   animation:toast-in .2s ease-out}
 :root[data-theme="dark"] .toast{background:#eef2fb;color:#0b1220}
 @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
@@ -110,6 +110,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   font-size:1.3rem;letter-spacing:.3em;background:var(--input);color:var(--text)}
 .banner-warn{background:var(--warn-soft);border-color:color-mix(in srgb,var(--warn-text) 30%,var(--border))}
 .banner-warn strong{color:var(--warn-text)}
+.role-grid{display:grid;gap:14px;margin-top:22px}
+.role-btn{display:flex;flex-direction:column;align-items:center;gap:6px;padding:22px 16px;border-radius:var(--radius-md);
+  font-size:1.1rem;font-weight:700}
+.role-btn .role-icon{font-size:2.2rem}
+.role-btn .role-hint{font-size:.78rem;font-weight:500;line-height:1.4}
 .scan-overlay{position:fixed;inset:0;background:#000;z-index:40;display:grid;place-items:center}
 .scan-overlay video{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
 .scan-overlay .scan-box{position:relative;width:min(280px,70vw);aspect-ratio:1.6;border:3px solid #fff;border-radius:12px;
@@ -189,4 +194,9 @@ summary:hover{color:var(--text)}
  .settings-grid{grid-template-columns:1fr}
  .hero{padding:20px}.hero h1{font-size:1.35rem}
  .tip-btn{width:30px;height:30px;font-size:.85rem}
+}
+@media print{
+  body *{visibility:hidden}
+  .receipt,.receipt *{visibility:visible}
+  .receipt{position:absolute;left:0;top:0;width:100%;border:none;box-shadow:none}
 }
